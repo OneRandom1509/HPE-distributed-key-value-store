@@ -31,7 +31,7 @@ debug:
 # ------------------------------------------------
 
 server: build
-	@./$(BUILD_DIR)/kvm_server
+	@./$(BUILD_DIR)/kvm_server $(ARGS)
 
 client: build
 	@./$(BUILD_DIR)/kvm_client

@@ -38,7 +38,7 @@ Ensure the following dependencies are installed:
 ## Install Dependencies with Spack
 
 ### Clone Spack
-```
+```bash
 git clone https://github.com/spack/spack.git
 export PATH=$PATH:$(pwd)/spack/bin
 ```
@@ -48,7 +48,7 @@ export PATH=$PATH:$(pwd)/spack/bin
 
 
 ### Install required libraries
-```
+```bash
 git clone https://github.com/mochi-hpc/mochi-spack-packages.git
 spack repo add mochi-spack-packages
 
@@ -64,34 +64,31 @@ spack install boost
 ```
 spack load margo argobots mercury thallium boost nlohmann-json
 ```
+Now clone the repository and switch to the desired branch
 
-### Clone the repository and switch to the desired branch
-
-### Build the project
-```
+## Build the project
+```bash
+make clean # removes the build directories for a fresh build
 make [build|debug]
 ```
 
 ## Starting the server
-### Default memory allocation
-```
+### With default memory allocation
+```bash
 make server
+```
+
+### With custom options 
+```bash
+make server ARGS="[protocol] [port] [shared_mem_size][K|M|G] [persistent/memory]" # all are optional in order
 ```
 The above command can be run on multiple machines to start the server across the cluster.
 
+To stop the client, just do `CTRL+C`.
+
 ## Starting the client
 ### Default (will prompt to add nodes)
-```
+```bash
 make client
 ```
-
-## Stopping the server
-```
-CTRL+C
-```
-
-## Stopping the client
-```
-Type exit or click CTRL+C
-```
-
+To stop the client, just type `exit` or do `CTRL+C`.
