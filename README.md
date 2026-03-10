@@ -27,14 +27,13 @@ Ensure the following dependencies are installed:
 - CMake (version 3.10 or higher)
 - C++ Compiler with C++14 support (e.g., GCC or Clang)
 - Spack (for managing HPC dependencies)
-- Boost
-- nlohmann-json (via vcpkg)
-- Mochi libraries:
-  - Margo
-  - Argobots
-  - Mercury
-  - Thallium
-
+- Spack libraries:
+  - mochi-margo
+  - argobots
+  - mercury
+  - mochi-thallium
+  - nlohmann-json
+  - boost
 
 ## Install Dependencies with Spack
 
@@ -44,65 +43,46 @@ git clone https://github.com/spack/spack.git
 export PATH=$PATH:$(pwd)/spack/bin
 ```
 
+> [!TIP]
+> It's better if you add the `/bin` directory of the spack repo to your path, so you don't have to do the above commands for every new shell session.
+
+
 ### Install required libraries
 ```
+git clone https://github.com/mochi-hpc/mochi-spack-packages.git
+spack repo add mochi-spack-packages
+
 spack install margo
 spack install argobots
 spack install mercury
 spack install thallium
+spack install nlohmann-json
 spack install boost
 ```
 
 ### Load the Spack environment
 ```
-spack load margo argobots mercury thallium boost
+spack load margo argobots mercury thallium boost nlohmann-json
 ```
 
-### Installing nlohmann-json (via vcpkg)
-```
-git clone https://github.com/microsoft/vcpkg.git
-cd vcpkg
-
-On windows:
-.\bootstrap-vcpkg.bat
-
-On linux/macOS:
-./bootstrap-vcpkg.sh
-
-./vcpkg install nlohmann-json
-
-
-```
-
-## Clone the repository and switch to the integration branch
-
-### Create and navigate to the build directory
-```
-mkdir build
-cd build
-```
-
-### Configure with CMake
-```
-cmake ..
-```
+### Clone the repository and switch to the desired branch
 
 ### Build the project
 ```
-make
+make [build|debug]
 ```
 
 ## Starting the server
 ### Default memory allocation
 ```
-./start_nodes.sh
+make server
 ```
-The above commands can be run on multiple machines to start the server across the cluster.
+The above command can be run on multiple machines to start the server across the cluster.
 
 ## Starting the client
 ### Default (will prompt to add nodes)
 ```
-./kvm_client
+make client
 ```
 
 ## Stopping the server
