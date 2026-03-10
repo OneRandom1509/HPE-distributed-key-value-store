@@ -31,6 +31,7 @@ find_package(nlohmann_json 3.2.0 REQUIRED)
 add_executable(kvm_server
     src/KVServer.cpp
     src/KVStore.cpp
+    src/Timer.cpp
     src/main_server.cpp
 )
 
@@ -57,6 +58,7 @@ add_executable(kvm_client
     src/KVStore.cpp
     src/KVDistributor.cpp
     src/config.cpp
+    src/Timer.cpp
     src/main_client.cpp
 )
 

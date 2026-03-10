@@ -1,8 +1,9 @@
 #include "KVServer.hpp"
 #include "KVStore.hpp"
-#include <chrono>
 #include <stdexcept>
 #include <thallium/serialization/stl/string.hpp>
+#include "Timer.hpp"
+
 KVServer::KVServer(tl::engine &e, KvStore &kv_ref, uint16_t provider_id)
     : tl::provider<KVServer>(e, provider_id), kv(kv_ref)
 {
@@ -13,17 +14,15 @@ KVServer::KVServer(tl::engine &e, KvStore &kv_ref, uint16_t provider_id)
 }
 void KVServer::kv_fetch(const tl::request &req, int key)
 {
-  auto start = std::chrono::high_resolution_clock::now(); // Start timing
+  Timer t;
+  t.start();
   std::cout << "[Fetch] key=" << key << std::endl;
   try
     {
       std::string value = kv.Find(key);
-      // Calculate and print elapsed time
-      auto end = std::chrono::high_resolution_clock::now();
-      std::chrono::duration<double, std::milli> elapsed = end - start;
+      t.stop();
       std::cout << "[Fetch] Key: " << key << ", Value: " << value << std::endl;
-      std::cout << "[Fetch] Server-side operation completed in "
-                << elapsed.count() << " ms" << std::endl;
+      t.print("Fetch");
       req.respond(value);
     }
   catch(const std::exception &e)
@@ -34,16 +33,14 @@ void KVServer::kv_fetch(const tl::request &req, int key)
 }
 void KVServer::kv_insert(const tl::request &req, int key, std::string value)
 {
-  auto start = std::chrono::high_resolution_clock::now(); // Start timing
+  Timer t;
+  t.start();
   std::cout << "[Insert] " << key << " -> " << value << std::endl;
   try
     {
       kv.Insert(key, value);
-      // Calculate and print elapsed time
-      auto end = std::chrono::high_resolution_clock::now();
-      std::chrono::duration<double, std::milli> elapsed = end - start;
-      std::cout << "[Insert] Server-side operation completed in "
-                << elapsed.count() << " ms" << std::endl;
+      t.stop();
+      t.print("Insert");
       req.respond(1);
     }
   catch(const std::exception &e)
@@ -54,16 +51,14 @@ void KVServer::kv_insert(const tl::request &req, int key, std::string value)
 }
 void KVServer::kv_update(const tl::request &req, int key, std::string value)
 {
-  auto start = std::chrono::high_resolution_clock::now(); // Start timing
+  Timer t;
+  t.start();
   std::cout << "[Update] " << key << " -> " << value << std::endl;
   try
     {
       kv.Update(key, value);
-      // Calculate and print elapsed time
-      auto end = std::chrono::high_resolution_clock::now();
-      std::chrono::duration<double, std::milli> elapsed = end - start;
-      std::cout << "[Update] Server-side operation completed in "
-                << elapsed.count() << " ms" << std::endl;
+      t.stop();
+      t.print("Update");
       req.respond(1);
     }
   catch(const std::exception &e)
@@ -72,19 +67,16 @@ void KVServer::kv_update(const tl::request &req, int key, std::string value)
       req.respond(0);
     }
 }
-// Add delete method implementation
 void KVServer::kv_delete(const tl::request &req, int key)
 {
-  auto start = std::chrono::high_resolution_clock::now(); // Start timing
+  Timer t;
+  t.start();
   std::cout << "[Delete] key=" << key << std::endl;
   try
     {
       kv.Delete(key);
-      // Calculate and print elapsed time
-      auto end = std::chrono::high_resolution_clock::now();
-      std::chrono::duration<double, std::milli> elapsed = end - start;
-      std::cout << "[Delete] Server-side operation completed in "
-                << elapsed.count() << " ms" << std::endl;
+      t.stop();
+      t.print("Delete");
       req.respond(1);
     }
   catch(const std::exception &e)
