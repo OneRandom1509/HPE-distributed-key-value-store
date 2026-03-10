@@ -127,3 +127,4 @@ docker-compose.override.yml
 *.old
 *.orig
 *.rej
+kvstore_persistent.dat
