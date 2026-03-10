@@ -1,0 +1,12 @@
+{
+    "local_node_id":0,
+    "provider_id": 1,
+    "protocol": "ofi+tcp",
+    "count_of_node": 2,
+    "ip_addresses":{
+        "0": "ofi+tcp://10.10.1.81:8080",
+        "1": "ofi+tcp://10.10.3.49:8080"
+    },
+    "local_ip": "ofi+tcp://10.10.1.81:8080",
+    "size": 500
+}
