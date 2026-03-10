@@ -479,7 +479,7 @@ int main(int argc, char **argv)
       storage_mode = StorageMode::MEMORY;
     }
 
-  Config config = Config("../config/config.json");
+  Config config = Config("config/config.json");
   size_t mem_size = config.read_size();
 
   try
