@@ -33,6 +33,7 @@ add_executable(kvm_server
     src/KVStore.cpp
     src/Timer.cpp
     src/main_server.cpp
+    src/MurmurHash3.cpp
 )
 
 target_include_directories(kvm_server
@@ -60,6 +61,7 @@ add_executable(kvm_client
     src/config.cpp
     src/Timer.cpp
     src/main_client.cpp
+    src/MurmurHash3.cpp
 )
 
 target_include_directories(kvm_client
