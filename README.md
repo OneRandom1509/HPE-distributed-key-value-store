@@ -62,7 +62,7 @@ spack install boost
 
 ### Load the Spack environment
 ```
-spack load margo argobots mercury thallium boost nlohmann-json
+spack load mochi-margo mochi-thallium nlohmann-json boost
 ```
 Now clone the repository and switch to the desired branch
 
