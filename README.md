@@ -27,91 +27,68 @@ Ensure the following dependencies are installed:
 - CMake (version 3.10 or higher)
 - C++ Compiler with C++14 support (e.g., GCC or Clang)
 - Spack (for managing HPC dependencies)
-- Boost
-- nlohmann-json (via vcpkg)
-- Mochi libraries:
-  - Margo
-  - Argobots
-  - Mercury
-  - Thallium
-
+- Spack libraries:
+  - mochi-margo
+  - argobots
+  - mercury
+  - mochi-thallium
+  - nlohmann-json
+  - boost
 
 ## Install Dependencies with Spack
 
 ### Clone Spack
-```
+```bash
 git clone https://github.com/spack/spack.git
 export PATH=$PATH:$(pwd)/spack/bin
 ```
 
+> [!TIP]
+> It's better if you add the `/bin` directory of the spack repo to your path, so you don't have to do the above commands for every new shell session.
+
+
 ### Install required libraries
-```
+```bash
+git clone https://github.com/mochi-hpc/mochi-spack-packages.git
+spack repo add mochi-spack-packages
+
 spack install margo
 spack install argobots
 spack install mercury
 spack install thallium
+spack install nlohmann-json
 spack install boost
 ```
 
 ### Load the Spack environment
 ```
-spack load margo argobots mercury thallium boost
+spack load margo argobots mercury thallium boost nlohmann-json
 ```
+Now clone the repository and switch to the desired branch
 
-### Installing nlohmann-json (via vcpkg)
-```
-git clone https://github.com/microsoft/vcpkg.git
-cd vcpkg
-
-On windows:
-.\bootstrap-vcpkg.bat
-
-On linux/macOS:
-./bootstrap-vcpkg.sh
-
-./vcpkg install nlohmann-json
-
-
-```
-
-## Clone the repository and switch to the integration branch
-
-### Create and navigate to the build directory
-```
-mkdir build
-cd build
-```
-
-### Configure with CMake
-```
-cmake ..
-```
-
-### Build the project
-```
-make
+## Build the project
+```bash
+make clean # removes the build directories for a fresh build
+make [build|debug]
 ```
 
 ## Starting the server
-### Default memory allocation
+### With default memory allocation
+```bash
+make server
 ```
-./start_nodes.sh
+
+### With custom options 
+```bash
+make server ARGS="[protocol] [port] [shared_mem_size][K|M|G] [persistent/memory]" # all are optional in order
 ```
-The above commands can be run on multiple machines to start the server across the cluster.
+The above command can be run on multiple machines to start the server across the cluster.
+
+To stop the client, just do `CTRL+C`.
 
 ## Starting the client
 ### Default (will prompt to add nodes)
+```bash
+make client
 ```
-./kvm_client
-```
-
-## Stopping the server
-```
-CTRL+C
-```
-
-## Stopping the client
-```
-Type exit or click CTRL+C
-```
-
+To stop the client, just type `exit` or do `CTRL+C`.
