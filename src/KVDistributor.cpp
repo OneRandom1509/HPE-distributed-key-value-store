@@ -37,8 +37,8 @@ KVDistributor::KVDistributor(KvStore &kv_store, const Config &config)
   local_node_id = getLocalNodeId();
   rebuildRing();
 
-  // default client
-  owned_kv_client = std::make_unique<KVClient>(protocol, 1);
+  // default client with 2000ms RPC timeout
+  owned_kv_client = std::make_unique<KVClient>(protocol, 1, 2000);
   kv_client = owned_kv_client.get();
 }
 
