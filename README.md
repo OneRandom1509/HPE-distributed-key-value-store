@@ -58,11 +58,12 @@ spack install mercury
 spack install thallium
 spack install nlohmann-json
 spack install boost
+spack install spdlog
 ```
 
 ### Load the Spack environment
 ```
-spack load mochi-margo mochi-thallium nlohmann-json boost
+spack load mochi-margo mochi-thallium nlohmann-json boost spdlog
 ```
 Now clone the repository and switch to the desired branch
 
@@ -84,7 +85,7 @@ make server ARGS="[protocol] [port] [shared_mem_size][K|M|G] [persistent/memory]
 ```
 The above command can be run on multiple machines to start the server across the cluster.
 
-To stop the client, just do `CTRL+C`.
+To stop the server, just do `CTRL+C`.
 
 ## Starting the client
 ### Default (will prompt to add nodes)
