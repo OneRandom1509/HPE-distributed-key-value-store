@@ -15,6 +15,14 @@ build:
 	@echo "▶ Building"
 	@$(CMAKE) --build $(BUILD_DIR)
 
+all: build
+
+# Clean rebuild
+rebuild:
+	@echo "▶ Rebuilding (clean + build)"
+	@rm -rf $(BUILD_DIR)
+	@$(MAKE) build
+
 # ------------------------------------------------
 # Debug build
 # ------------------------------------------------
@@ -39,6 +47,31 @@ client: build
 nodes: build
 	@./$(BUILD_DIR)/start_nodes.sh
 
+test: build
+	@ctest --test-dir $(BUILD_DIR) --output-on-failure -V
+
+# Run only the KVDistributor unit test binary (convenience)
+test-kv: build
+	@if [ -x "$(BUILD_DIR)/kv_distributor_tests" ]; then \
+		echo "▶ Running kv_distributor_tests"; \
+		"$(BUILD_DIR)/kv_distributor_tests"; \
+	else \
+		echo "kv_distributor_tests not found. Run 'make build' first."; exit 1; \
+	fi
+
+# Run only consistent_hash_ring_tests binary
+test-ring: build
+	@if [ -x "$(BUILD_DIR)/consistent_hash_ring_tests" ]; then \
+		echo "▶ Running consistent_hash_ring_tests"; \
+		"$(BUILD_DIR)/consistent_hash_ring_tests"; \
+	else \
+		echo "consistent_hash_ring_tests not found. Run 'make build' first."; exit 1; \
+	fi
+
+# Verbose ctest
+test-verbose: build
+	@ctest --test-dir $(BUILD_DIR) --output-on-failure -V
+
 # ------------------------------------------------
 # Cleaning
 # ------------------------------------------------
@@ -53,4 +86,4 @@ clean:
 compile_commands: build
 	@ln -sf $(BUILD_DIR)/compile_commands.json .
 
-.PHONY: build debug clean server client nodes
+.PHONY: build debug clean server client nodes test
