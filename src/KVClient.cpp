@@ -2,12 +2,15 @@
 #include "KVStore.hpp"
 #include "Timer.hpp"
 #include <thallium/serialization/stl/string.hpp>
+
 KVClient::KVClient(const std::string &protocol, uint16_t provider_id)
-    : myEngine(protocol, THALLIUM_CLIENT_MODE), provider_id(provider_id)
+    : myEngine(protocol, THALLIUM_CLIENT_MODE), provider_id(provider_id),
+      protocol(protocol)
 {
   std::cout << "[DEBUG] Thallium initialized with protocol: " << protocol
             << std::endl;
 }
+
 std::string KVClient::fetch(int key, std::string &server_endpoint)
 {
   std::string value = "";
@@ -15,7 +18,8 @@ std::string KVClient::fetch(int key, std::string &server_endpoint)
     {
       std::cout << "Key not found locally. Fetching from server.\n";
       tl::remote_procedure remote_kv_fetch = myEngine.define("kv_fetch");
-      tl::endpoint server_ep = myEngine.lookup(server_endpoint);
+      std::string full_ep = protocol + "://" + server_endpoint;
+      tl::endpoint server_ep = myEngine.lookup(full_ep);
       tl::provider_handle ph(server_ep, provider_id);
       Timer t;
       t.start();
@@ -32,13 +36,15 @@ std::string KVClient::fetch(int key, std::string &server_endpoint)
     }
   return value;
 }
+
 void KVClient::insert(int key, const std::string value,
                       const std::string &server_endpoint)
 {
   try
     {
       tl::remote_procedure remote_kv_insert = myEngine.define("kv_insert");
-      tl::endpoint server_ep = myEngine.lookup(server_endpoint);
+      std::string full_ep = protocol + "://" + server_endpoint;
+      tl::endpoint server_ep = myEngine.lookup(full_ep);
       tl::provider_handle ph(server_ep, provider_id);
       Timer t;
       t.start();
@@ -53,13 +59,15 @@ void KVClient::insert(int key, const std::string value,
       std::cerr << "Insert operation failed: " << e.what() << std::endl;
     }
 }
+
 void KVClient::update(int key, const std::string value,
                       const std::string &server_endpoint)
 {
   try
     {
       tl::remote_procedure remote_kv_update = myEngine.define("kv_update");
-      tl::endpoint server_ep = myEngine.lookup(server_endpoint);
+      std::string full_ep = protocol + "://" + server_endpoint;
+      tl::endpoint server_ep = myEngine.lookup(full_ep);
       tl::provider_handle ph(server_ep, provider_id);
       Timer t;
       t.start();
@@ -74,12 +82,14 @@ void KVClient::update(int key, const std::string value,
       std::cerr << "Update operation failed: " << e.what() << std::endl;
     }
 }
+
 void KVClient::deleteKey(int key, const std::string &server_endpoint)
 {
   try
     {
       tl::remote_procedure remote_kv_delete = myEngine.define("kv_delete");
-      tl::endpoint server_ep = myEngine.lookup(server_endpoint);
+      std::string full_ep = protocol + "://" + server_endpoint;
+      tl::endpoint server_ep = myEngine.lookup(full_ep);
       tl::provider_handle ph(server_ep, provider_id);
       Timer t;
       t.start();
