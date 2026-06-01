@@ -400,7 +400,8 @@ MemoryStats KvStore::GetMemoryStats() const
 
   if(storage_mode == StorageMode::MEMORY && memory_storage)
     {
-      stats.total_size = total_memory_size;
+      // Use the actual shared segment size reported by Boost
+      stats.total_size = memory_storage->get_size();
       stats.free_memory = memory_storage->get_free_memory();
       stats.used_memory = stats.total_size - stats.free_memory;
       stats.usage_percent
@@ -408,7 +409,8 @@ MemoryStats KvStore::GetMemoryStats() const
     }
   else if(storage_mode == StorageMode::PERSISTENT && file_storage)
     {
-      stats.total_size = total_memory_size;
+      // For mapped files use the actual mapping size
+      stats.total_size = file_storage->get_size();
       stats.free_memory = file_storage->get_free_memory();
       stats.used_memory = stats.total_size - stats.free_memory;
       stats.usage_percent
