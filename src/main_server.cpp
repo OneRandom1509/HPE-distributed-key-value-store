@@ -1,9 +1,18 @@
 #include "KVServer.hpp"
 #include "KVStore.hpp"
 #include <algorithm>
+#include <chrono>
+#include <csignal>
 #include <iostream>
-#include <stdexcept>
 #include <string>
+#include <thread>
+
+namespace
+{
+  volatile std::sig_atomic_t shutdown_signal = 0;
+
+  void handleShutdownSignal(int signal) { shutdown_signal = signal; }
+}
 
 // Helper function to parse memory size from string with unit suffix
 std::size_t parseMemorySize(const std::string &size_str)
@@ -63,6 +72,9 @@ int main(int argc, char **argv)
   int port = 8080;
   std::size_t mem_size = 100 * 1024 * 1024;       // Default 100MB
   StorageMode storage_mode = StorageMode::MEMORY; // Default to memory mode
+
+  std::signal(SIGINT, handleShutdownSignal);
+  std::signal(SIGTERM, handleShutdownSignal);
 
   // Debug: Print all arguments received
   std::cout << "\n=== SERVER STARTUP DEBUG ===\n";
@@ -195,7 +207,27 @@ int main(int argc, char **argv)
   std::cout << "Endpoint: " << myEngine.self() << "\n";
   std::cout << "===================\n\n";
 
-  // Wait for completion
+  std::thread shutdown_watcher([&]() -> void {
+    while(shutdown_signal == 0)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+      }
+
+    std::cout << "\n[Server] Received signal " << shutdown_signal
+              << ", starting clean shutdown...\n";
+    std::cout << "[Server] Flushing store and releasing resources...\n";
+    kv.Sync();
+    std::cout << "[Server] Finalizing Thallium engine...\n";
+    myEngine.finalize();
+  });
+
+  std::cout << "\n[Server] Ready. Press CTRL+C to shut down cleanly.\n";
+
   myEngine.wait_for_finalize();
+  if(shutdown_watcher.joinable())
+    {
+      shutdown_watcher.join();
+    }
+  std::cout << "[Server] Shutdown complete.\n";
   return 0;
 }
