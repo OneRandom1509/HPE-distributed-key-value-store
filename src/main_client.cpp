@@ -516,8 +516,17 @@ int main(int argc, char **argv)
   try
     {
       // CLIENT mode - connect to existing storage instead of creating new
-      KvStore &kv_store = KvStore::get_instance(mem_size, storage_mode,
-                                                ConnectionMode::CLIENT);
+      // Determine node_tag from configured first endpoint port so the client
+      // connects to the same per-node shared memory the server created.
+      Config config = Config("config/config.json");
+      std::string first_ep = config.get_endpoint(0);
+      std::string node_tag = "";
+      auto pos = first_ep.rfind(':');
+      if(pos != std::string::npos && pos + 1 < first_ep.size())
+        node_tag = first_ep.substr(pos + 1);
+
+      KvStore &kv_store = KvStore::get_instance(
+        mem_size, storage_mode, ConnectionMode::CLIENT, node_tag);
 
       std::cout << "Storage Mode: "
                 << (storage_mode == StorageMode::PERSISTENT ? "PERSISTENT"

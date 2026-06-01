@@ -186,8 +186,8 @@ int main(int argc, char **argv)
 
   // CRITICAL CHANGE: Pass both memory size AND storage mode
   // In your server main function
-  KvStore &kv
-    = KvStore::get_instance(mem_size, storage_mode, ConnectionMode::SERVER);
+  KvStore &kv = KvStore::get_instance(
+    mem_size, storage_mode, ConnectionMode::SERVER, std::to_string(port));
   std::cout << "KvStore initialized successfully" << std::endl;
 
   // Create and start the KVServer
