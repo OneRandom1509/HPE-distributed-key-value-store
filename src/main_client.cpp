@@ -3,6 +3,7 @@
 #include "KVStore.hpp"
 #include "config.hpp"
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
@@ -538,6 +539,27 @@ int main(int argc, char **argv)
       // Pass the local_store to ThalliumDistributor
       KVDistributor distributor(kv_store, config);
 
+      // Background thread to refresh cluster membership every 10s
+      std::atomic<bool> membership_active{true};
+      std::thread membership_thread([&distributor, &membership_active]() {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        while(membership_active.load())
+          {
+            std::string ep = distributor.getFirstEndpoint();
+            if(!ep.empty())
+              {
+                spdlog::info("Refreshing membership from {}", ep);
+                if(distributor.fetchMembershipFromServer(ep))
+                  {
+                    spdlog::info("Membership refreshed, {} nodes in ring",
+                                 distributor.getNodeCount());
+                  }
+              }
+            for(int i = 0; i < 10 && membership_active.load(); ++i)
+              std::this_thread::sleep_for(std::chrono::seconds(1));
+          }
+      });
+
       printHelp();
 
       while(true)
@@ -656,6 +678,9 @@ int main(int argc, char **argv)
                 << std::endl;
             }
         }
+      membership_active = false;
+      if(membership_thread.joinable())
+        membership_thread.join();
     }
   catch(const std::exception &e)
     {

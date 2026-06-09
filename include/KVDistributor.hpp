@@ -7,6 +7,7 @@
 #include "config.hpp"
 #include <unordered_map>
 #include <string>
+#include <mutex>
 
 class KVDistributor
 {
@@ -18,12 +19,15 @@ public:
   int getNodeCount();
   void rebuildRing(const std::unordered_map<int, std::string> &node_endpoints,
                    int virtual_nodes_per_node = 150);
+  bool fetchMembershipFromServer(const std::string &server_endpoint);
+  std::string getFirstEndpoint() const;
   std::string get(int key);
   void insert(int key, const std::string &value);
   void update(int key, const std::string &value);
   void deleteKey(int key);
 
 private:
+  mutable std::mutex ring_mutex_;
   int count_of_node = 0;
   std::unordered_map<int, std::string> node_to_ip;
   std::string protocol;

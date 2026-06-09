@@ -1,4 +1,5 @@
 #include "KVDistributor.hpp"
+#include "GossipMembership.hpp"
 #include "MurmurHash3.hpp"
 #include <spdlog/spdlog.h>
 #include <iostream>
@@ -88,18 +89,68 @@ int KVDistributor::getLocalNodeId()
   return -1;
 }
 
-void KVDistributor::rebuildRing() { hash_ring.rebuild(node_to_ip); }
+void KVDistributor::rebuildRing()
+{
+  std::lock_guard<std::mutex> lock(ring_mutex_);
+  hash_ring.rebuild(node_to_ip);
+}
 
 void KVDistributor::rebuildRing(
   const std::unordered_map<int, std::string> &node_endpoints,
   int virtual_nodes_per_node)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   node_to_ip = node_endpoints;
   count_of_node = static_cast<int>(node_to_ip.size());
   hash_ring.rebuild(node_to_ip, virtual_nodes_per_node);
 }
 
-int KVDistributor::getNodeCount() { return count_of_node; }
+int KVDistributor::getNodeCount()
+{
+  std::lock_guard<std::mutex> lock(ring_mutex_);
+  return count_of_node;
+}
+
+std::string KVDistributor::getFirstEndpoint() const
+{
+  std::lock_guard<std::mutex> lock(ring_mutex_);
+  if(node_to_ip.empty())
+    return {};
+  return node_to_ip.begin()->second;
+}
+
+bool KVDistributor::fetchMembershipFromServer(
+  const std::string &server_endpoint)
+{
+  try
+    {
+      auto members = kv_client->getMembership(server_endpoint);
+      std::unordered_map<int, std::string> live;
+      for(const auto &m : members)
+        {
+          if(m.status != NodeStatus::ALIVE)
+            continue;
+          std::string ep = m.endpoint;
+          auto pos = ep.find("://");
+          if(pos != std::string::npos)
+            ep = ep.substr(pos + 3);
+          live[m.node_id] = ep;
+        }
+      if(live.empty())
+        return false;
+      std::lock_guard<std::mutex> lock(ring_mutex_);
+      node_to_ip = live;
+      count_of_node = static_cast<int>(node_to_ip.size());
+      hash_ring.rebuild(node_to_ip);
+      return true;
+    }
+  catch(const std::exception &e)
+    {
+      std::cerr << "fetchMembershipFromServer failed: " << e.what()
+                << std::endl;
+      return false;
+    }
+}
 
 bool KVDistributor::readFromNode(int node_id, int key, std::string &value)
 {
@@ -215,6 +266,7 @@ void KVDistributor::deleteOnNode(int node_id, int key)
 
 std::string KVDistributor::get(int key)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   std::string value;
 
   int primary_node_id = hash_ring.getPrimaryNode(key);
@@ -240,6 +292,7 @@ std::string KVDistributor::get(int key)
 
 void KVDistributor::insert(int key, const std::string &value)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   int primary_node_id = hash_ring.getPrimaryNode(key);
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
@@ -254,6 +307,7 @@ void KVDistributor::insert(int key, const std::string &value)
 
 void KVDistributor::update(int key, const std::string &value)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   int primary_node_id = hash_ring.getPrimaryNode(key);
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
@@ -268,6 +322,7 @@ void KVDistributor::update(int key, const std::string &value)
 
 void KVDistributor::deleteKey(int key)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   int primary_node_id = hash_ring.getPrimaryNode(key);
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
