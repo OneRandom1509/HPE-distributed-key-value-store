@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <set>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -98,6 +99,8 @@ private:
   std::thread gossip_thread_;
 
   MembershipChangeCallback change_callback_;
+
+  std::set<int> last_alive_set_;
 
   uint32_t generation_;
 };

@@ -139,6 +139,8 @@ bool KVDistributor::fetchMembershipFromServer(
       if(live.empty())
         return false;
       std::lock_guard<std::mutex> lock(ring_mutex_);
+      if(live == node_to_ip)
+        return true;
       node_to_ip = live;
       count_of_node = static_cast<int>(node_to_ip.size());
       hash_ring.rebuild(node_to_ip);

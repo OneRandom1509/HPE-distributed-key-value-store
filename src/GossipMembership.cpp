@@ -200,8 +200,6 @@ std::vector<MemberRecord> GossipMembership::getMemberView() const
   return view;
 }
 
-// ---- private helpers ----
-
 void GossipMembership::gossipLoop()
 {
   while(running_)
@@ -352,11 +350,24 @@ void GossipMembership::notifyChange()
   if(!change_callback_)
     return;
 
-  std::unordered_map<int, std::string> live;
+  std::set<int> current_alive;
   for(const auto &[id, entry] : member_table_)
     {
       if(entry.record.status == NodeStatus::ALIVE)
-        live[id] = entry.record.endpoint;
+        current_alive.insert(id);
+    }
+
+  if(current_alive == last_alive_set_)
+    return;
+
+  last_alive_set_ = current_alive;
+
+  std::unordered_map<int, std::string> live;
+  for(int id : current_alive)
+    {
+      auto it = member_table_.find(id);
+      if(it != member_table_.end())
+        live[id] = it->second.record.endpoint;
     }
   change_callback_(live);
 }
