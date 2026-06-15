@@ -228,6 +228,15 @@ int main(int argc, char **argv)
       server_ring->rebuild(live);
       for(const auto &[id, ep] : live)
         std::cout << "  Node " << id << " -> " << ep << "\n";
+
+      auto ranges = server_ring->getKeyRanges();
+      for(const auto &[node_id, node_ranges] : ranges)
+        {
+          std::cout << "  Node " << node_id << " key ranges:\n";
+          for(const auto &kr : node_ranges)
+            std::cout << "    [0x" << std::hex << kr.start << std::dec
+                      << ", 0x" << std::hex << kr.end << std::dec << ")\n";
+        }
     });
 
   // Create and start KVServer (with membership pointer for gossip RPC)
