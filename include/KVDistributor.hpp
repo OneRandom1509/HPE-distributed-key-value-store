@@ -18,7 +18,7 @@ public:
 
   int getNodeCount();
   void rebuildRing(const std::unordered_map<int, std::string> &node_endpoints,
-                   int virtual_nodes_per_node = 150);
+                   int virtual_nodes_per_node = 2);
   bool fetchMembershipFromServer(const std::string &server_endpoint);
   std::string getFirstEndpoint() const;
   std::string get(int key);

@@ -17,13 +17,13 @@ class ConsistentHashRing
 public:
   ConsistentHashRing() = default;
   ConsistentHashRing(const std::unordered_map<int, std::string> &node_endpoints,
-                     int virtual_nodes_per_node = 150);
+                     int virtual_nodes_per_node = 2);
 
   int getPrimaryNode(int key) const;
   int getBuddyNode(int key) const;
   std::unordered_map<int, std::vector<KeyRange>> getKeyRanges() const;
   void rebuild(const std::unordered_map<int, std::string> &node_endpoints,
-               int virtual_nodes_per_node = 150);
+               int virtual_nodes_per_node = 2);
 
 private:
   struct Token
