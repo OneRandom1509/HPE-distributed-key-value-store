@@ -106,3 +106,44 @@ int ConsistentHashRing::getBuddyNode(int key) const
   // single-node cluster
   return start->node_id;
 }
+
+std::unordered_map<int, std::vector<KeyRange>>
+ConsistentHashRing::getKeyRanges() const
+{
+  std::unordered_map<int, std::vector<KeyRange>> result;
+
+  if(ring_.empty())
+    return result;
+
+  const size_t n = ring_.size();
+  for(size_t i = 0; i < n; ++i)
+    {
+      // This token owns keys whose hash is in (prev_pos, cur_pos].
+      // Represent as half-open ranges [start, end) where
+      // start = prev_pos + 1 and end = cur_pos + 1.
+      uint32_t cur_pos = ring_[i].position;
+      uint32_t prev_pos = ring_[(i + n - 1) % n].position;
+      int node_id = ring_[i].node_id;
+
+      uint32_t start = prev_pos + 1;
+      uint32_t end = cur_pos + 1;
+
+      if(start < end)
+        {
+          result[node_id].push_back({start, end});
+        }
+      else if(start > end)
+        {
+          result[node_id].push_back({start, UINT32_MAX});
+          if(end > 0)
+            result[node_id].push_back({0, end});
+        }
+      else
+        {
+          if(n == 1)
+            result[node_id].push_back({0, UINT32_MAX});
+        }
+    }
+
+  return result;
+}
