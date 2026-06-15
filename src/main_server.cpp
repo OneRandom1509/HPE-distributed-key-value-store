@@ -9,13 +9,22 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <unistd.h>
 
 namespace
 {
   volatile std::sig_atomic_t shutdown_signal = 0;
   GossipMembership *global_gossip = nullptr;
 
-  void handleShutdownSignal(int signal) { shutdown_signal = signal; }
+  void handleShutdownSignal(int signal)
+  {
+    if(shutdown_signal != 0)
+      {
+        std::cerr << "\n[Server] Forced shutdown (signal " << signal << ")\n";
+        _exit(0);
+      }
+    shutdown_signal = signal;
+  }
 }
 
 // Helper function to parse memory size from string with unit suffix
