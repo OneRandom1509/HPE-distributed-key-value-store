@@ -10,10 +10,10 @@ CMAKE := cmake
 
 build:
 	@echo "▶ Configuring Release"
-	@$(CMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
+	+@$(CMAKE) -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
 
 	@echo "▶ Building"
-	@$(CMAKE) --build $(BUILD_DIR)
+	+@$(CMAKE) --build $(BUILD_DIR)
 
 all: build
 
@@ -29,10 +29,10 @@ rebuild:
 
 debug:
 	@echo "▶ Configuring Debug"
-	@$(CMAKE) -S . -B $(BUILD_DBG_DIR) -DCMAKE_BUILD_TYPE=Debug
+	+@$(CMAKE) -S . -B $(BUILD_DBG_DIR) -DCMAKE_BUILD_TYPE=Debug
 
 	@echo "▶ Building Debug"
-	@$(CMAKE) --build $(BUILD_DBG_DIR)
+	+@$(CMAKE) --build $(BUILD_DBG_DIR)
 
 # ------------------------------------------------
 # Run targets
