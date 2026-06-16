@@ -29,11 +29,10 @@ Ensure the following dependencies are installed:
 - Spack (for managing HPC dependencies)
 - Spack libraries:
   - mochi-margo
-  - argobots
-  - mercury
   - mochi-thallium
   - nlohmann-json
   - boost
+  - spdlog
 
 ## Install Dependencies with Spack
 
@@ -50,12 +49,11 @@ export PATH=$PATH:$(pwd)/spack/bin
 ### Install required libraries
 ```bash
 git clone https://github.com/mochi-hpc/mochi-spack-packages.git
-spack repo add mochi-spack-packages
+cd mochi-spack-packages/spack_repo
+spack repo add mochi
 
-spack install margo
-spack install argobots
-spack install mercury
-spack install thallium
+spack install mochi-margo
+spack install mochi-thallium
 spack install nlohmann-json
 spack install boost
 spack install spdlog
