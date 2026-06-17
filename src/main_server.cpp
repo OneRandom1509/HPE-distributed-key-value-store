@@ -74,18 +74,21 @@ std::size_t parseMemorySize(const std::string &size_str)
   return size;
 }
 
-// Determine node_id by matching port against config ip_addresses
-int findNodeId(const Config &config, int port)
+// Determine node_id by matching IP and port against config ip_addresses
+int findNodeId(const Config &config, const std::string &local_ip, int port)
 {
   std::string port_str = ":" + std::to_string(port);
   int count = config.read_count();
   for(int i = 0; i < count; ++i)
     {
       std::string ep = config.get_endpoint(i);
-      if(ep.size() >= port_str.size()
-         && ep.substr(ep.size() - port_str.size()) == port_str)
+      size_t colon = ep.find(':');
+      if(colon != std::string::npos)
         {
-          return i;
+          std::string ep_ip = ep.substr(0, colon);
+          std::string ep_port = ep.substr(colon);
+          if(ep_ip == local_ip && ep_port == port_str)
+            return i;
         }
     }
   return -1;
@@ -153,10 +156,12 @@ int main(int argc, char **argv)
       snprintf(ip_buffer, sizeof(ip_buffer), "127.0.0.1");
     }
 
+  std::string local_ip(ip_buffer);
+  local_ip.erase(std::remove(local_ip.begin(), local_ip.end(), '\n'),
+                 local_ip.end());
+
   std::string address
-    = protocol + "://" + std::string(ip_buffer) + ":" + std::to_string(port);
-  address.erase(std::remove(address.begin(), address.end(), '\n'),
-                address.end());
+    = protocol + "://" + local_ip + ":" + std::to_string(port);
 
   uint16_t provider_id = 1;
 
@@ -174,7 +179,7 @@ int main(int argc, char **argv)
 
   // Read config to determine node identity and gossip settings
   Config config("config/config.json");
-  int node_id = findNodeId(config, port);
+  int node_id = findNodeId(config, local_ip, port);
   if(node_id < 0)
     {
       std::cerr << "Warning: could not find node_id for port " << port
