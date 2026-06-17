@@ -7,6 +7,7 @@
 #include "config.hpp"
 #include <unordered_map>
 #include <string>
+#include <vector>
 #include <mutex>
 
 class KVDistributor
@@ -21,6 +22,7 @@ public:
                    int virtual_nodes_per_node = 2);
   bool fetchMembershipFromServer(const std::string &server_endpoint);
   std::string getFirstEndpoint() const;
+  std::vector<std::string> getAllEndpoints() const;
   std::string get(int key);
   void insert(int key, const std::string &value);
   void update(int key, const std::string &value);

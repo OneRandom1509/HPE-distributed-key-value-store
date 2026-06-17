@@ -119,6 +119,16 @@ std::string KVDistributor::getFirstEndpoint() const
   return node_to_ip.begin()->second;
 }
 
+std::vector<std::string> KVDistributor::getAllEndpoints() const
+{
+  std::lock_guard<std::mutex> lock(ring_mutex_);
+  std::vector<std::string> endpoints;
+  endpoints.reserve(node_to_ip.size());
+  for(const auto &[_, ep] : node_to_ip)
+    endpoints.push_back(ep);
+  return endpoints;
+}
+
 bool KVDistributor::fetchMembershipFromServer(
   const std::string &server_endpoint)
 {

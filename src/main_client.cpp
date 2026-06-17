@@ -545,16 +545,26 @@ int main(int argc, char **argv)
         std::this_thread::sleep_for(std::chrono::seconds(2));
         while(membership_active.load())
           {
-            std::string ep = distributor.getFirstEndpoint();
-            if(!ep.empty())
+            auto endpoints = distributor.getAllEndpoints();
+            bool refreshed = false;
+            for(const auto &ep : endpoints)
               {
+                if(!membership_active.load())
+                  break;
                 spdlog::info("Refreshing membership from {}", ep);
                 if(distributor.fetchMembershipFromServer(ep))
                   {
                     spdlog::info("Membership refreshed, {} nodes in ring",
                                  distributor.getNodeCount());
+                    refreshed = true;
+                    break;
                   }
+                spdlog::warn("Failed to refresh membership from {}, trying next",
+                             ep);
               }
+            if(!refreshed)
+              spdlog::warn(
+                "Could not refresh membership from any known server");
             for(int i = 0; i < 10 && membership_active.load(); ++i)
               std::this_thread::sleep_for(std::chrono::seconds(1));
           }
