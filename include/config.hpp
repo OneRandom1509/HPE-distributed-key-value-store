@@ -19,11 +19,10 @@ public:
 
   uint16_t read_provider_id() const;
   std::string read_protocol() const;
-  int read_count() const;
-  std::string get_endpoint(int node_id) const;
   size_t read_size() const;
   std::string read_ip() const;
   GossipConfig read_gossip_config() const;
+  std::vector<std::string> read_seed_nodes() const;
 
 private:
   nlohmann::json config_json;
