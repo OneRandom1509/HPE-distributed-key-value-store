@@ -26,6 +26,7 @@ find_package(Boost REQUIRED)
 find_package(nlohmann_json 3.2.0 REQUIRED)
 find_package(GTest REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(httplib REQUIRED)
 
 # ------------------------------------------------
 # Server
@@ -87,6 +88,56 @@ target_link_libraries(kvm_client
         Boost::boost
         nlohmann_json::nlohmann_json
         spdlog::spdlog
+)
+
+# ------------------------------------------------
+# HTTP Gateway (KV client with HTTP server)
+# ------------------------------------------------
+
+add_executable(kvm_http_gateway
+    src/KVClient.cpp
+    src/KVStore.cpp
+    src/KVDistributor.cpp
+    src/ConsistentHashRing.cpp
+    src/config.cpp
+    src/Timer.cpp
+    src/MurmurHash3.cpp
+    src/http_gateway.cpp
+)
+
+target_include_directories(kvm_http_gateway
+    PRIVATE
+        include
+)
+
+target_link_libraries(kvm_http_gateway
+    PRIVATE
+        PkgConfig::MARGO
+        PkgConfig::ABT
+        PkgConfig::MERCURY
+        thallium
+        Boost::boost
+        nlohmann_json::nlohmann_json
+        spdlog::spdlog
+        httplib::httplib
+)
+
+# ------------------------------------------------
+# HTTP Client (lightweight CLI over HTTP)
+# ------------------------------------------------
+
+add_executable(kvm_http_client
+    src/http_client.cpp
+)
+
+target_include_directories(kvm_http_client
+    PRIVATE
+        include
+)
+
+target_link_libraries(kvm_http_client
+    PRIVATE
+        httplib::httplib
 )
 
 # ------------------------------------------------

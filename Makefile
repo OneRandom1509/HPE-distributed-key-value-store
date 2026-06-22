@@ -39,10 +39,16 @@ debug:
 # ------------------------------------------------
 
 server: build
-	@./$(BUILD_DIR)/kvm_server $(ARGS)
+	@./$(BUILD_DIR)/kvm_server --config config/server.json $(ARGS)
 
 client: build
-	@./$(BUILD_DIR)/kvm_client
+	@./$(BUILD_DIR)/kvm_client --config config/client.json $(ARGS)
+
+http-gateway: build
+	@./$(BUILD_DIR)/kvm_http_gateway --config config/gateway.json $(ARGS)
+
+http-client: build
+	@./$(BUILD_DIR)/kvm_http_client $(ARGS)
 
 nodes: build
 	@./$(BUILD_DIR)/start_nodes.sh
@@ -86,4 +92,4 @@ clean:
 compile_commands: build
 	@ln -sf $(BUILD_DIR)/compile_commands.json .
 
-.PHONY: build debug clean server client nodes test
+.PHONY: build debug clean server client http-gateway http-client nodes test
