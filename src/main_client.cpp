@@ -490,6 +490,14 @@ int main(int argc, char **argv)
   std::cout << "\nModulo-based Key-Value Store CLIENT" << std::endl;
   std::cout << "===================================" << std::endl;
 
+  std::string config_path = "config/config.json";
+  for(int i = 1; i < argc; i++)
+    {
+      std::string arg = argv[i];
+      if(arg == "--config" && i + 1 < argc)
+        config_path = argv[++i];
+    }
+
   std::string mode;
   std::cout << "Enter server storage mode (memory/persistent): ";
   std::getline(std::cin, mode);
@@ -511,20 +519,19 @@ int main(int argc, char **argv)
       storage_mode = StorageMode::MEMORY;
     }
 
-  Config config = Config("config/config.json");
-  size_t mem_size = config.read_size();
-
   try
     {
+      Config config(config_path);
+      size_t mem_size = config.read_size();
+
       // CLIENT mode - connect to existing storage instead of creating new
-      // Determine node_tag from configured first endpoint port so the client
+      // Determine node_tag from local_ip port so the client
       // connects to the same per-node shared memory the server created.
-      Config config = Config("config/config.json");
-      std::string first_ep = config.get_endpoint(0);
+      std::string local_ip = config.read_ip();
       std::string node_tag = "";
-      auto pos = first_ep.rfind(':');
-      if(pos != std::string::npos && pos + 1 < first_ep.size())
-        node_tag = first_ep.substr(pos + 1);
+      auto pos = local_ip.rfind(':');
+      if(pos != std::string::npos && pos + 1 < local_ip.size())
+        node_tag = local_ip.substr(pos + 1);
 
       KvStore &kv_store = KvStore::get_instance(
         mem_size, storage_mode, ConnectionMode::CLIENT, node_tag);

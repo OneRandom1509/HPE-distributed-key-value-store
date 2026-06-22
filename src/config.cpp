@@ -24,17 +24,6 @@ std::string Config::read_protocol() const
   return config_json.at("protocol").get<std::string>();
 }
 
-int Config::read_count() const
-{
-  return config_json.at("count_of_node").get<int>();
-}
-
-std::string Config::get_endpoint(int node_id) const
-{
-  const auto &ip_map = config_json.at("ip_addresses");
-  return ip_map.at(std::to_string(node_id)).get<std::string>();
-}
-
 size_t Config::read_size() const
 {
   int size_in_mb = config_json.at("size").get<int>();
@@ -66,4 +55,19 @@ GossipConfig Config::read_gossip_config() const
         gc.seed_nodes.push_back(s.get<std::string>());
     }
   return gc;
+}
+
+std::vector<std::string> Config::read_seed_nodes() const
+{
+  if(config_json.contains("seed_nodes"))
+    return config_json["seed_nodes"].get<std::vector<std::string>>();
+  if(config_json.contains("gossip")
+     && config_json["gossip"].contains("seed_nodes"))
+    {
+      std::vector<std::string> nodes;
+      for(const auto &s : config_json["gossip"]["seed_nodes"])
+        nodes.push_back(s.get<std::string>());
+      return nodes;
+    }
+  return {};
 }

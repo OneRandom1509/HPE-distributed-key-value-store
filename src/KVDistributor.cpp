@@ -22,40 +22,36 @@ namespace
 }
 
 KVDistributor::KVDistributor(KvStore &kv_store, const Config &config)
-    : count_of_node(config.read_count()), node_to_ip(),
-      protocol(config.read_protocol()), provider_id(1), kv_client(nullptr),
-      owned_kv_client(), hash_ring(), kv(kv_store), config(config)
+    : node_to_ip(), protocol(config.read_protocol()), provider_id(1),
+      kv_client(nullptr), owned_kv_client(), hash_ring(), kv(kv_store),
+      config(config)
 {
-  // std::cout<<protocol<<"  "<<provider_id<<'\n';
-  for(int i = 0; i < count_of_node; ++i)
+  std::string local_ip = config.read_ip();
+  if(!local_ip.empty())
     {
-      std::string endpoint = config.get_endpoint(i);
-      node_to_ip[i] = endpoint;
+      node_to_ip[0] = local_ip;
+      count_of_node = 1;
     }
-
-  count_of_node = static_cast<int>(node_to_ip.size());
 
   local_node_id = getLocalNodeId();
   rebuildRing();
 
-  // default client with 2000ms RPC timeout
   owned_kv_client = std::make_unique<KVClient>(protocol, 1, 2000);
   kv_client = owned_kv_client.get();
 }
 
 KVDistributor::KVDistributor(KvStore &kv_store, const Config &config,
                              IKVClient *client)
-    : count_of_node(config.read_count()), node_to_ip(),
-      protocol(config.read_protocol()), provider_id(1), kv_client(client),
-      owned_kv_client(), hash_ring(), kv(kv_store), config(config)
+    : node_to_ip(), protocol(config.read_protocol()), provider_id(1),
+      kv_client(client), owned_kv_client(), hash_ring(), kv(kv_store),
+      config(config)
 {
-  for(int i = 0; i < count_of_node; ++i)
+  std::string local_ip = config.read_ip();
+  if(!local_ip.empty())
     {
-      std::string endpoint = config.get_endpoint(i);
-      node_to_ip[i] = endpoint;
+      node_to_ip[0] = local_ip;
+      count_of_node = 1;
     }
-
-  count_of_node = static_cast<int>(node_to_ip.size());
 
   local_node_id = getLocalNodeId();
   rebuildRing();
@@ -93,6 +89,7 @@ void KVDistributor::rebuildRing()
 {
   std::lock_guard<std::mutex> lock(ring_mutex_);
   hash_ring.rebuild(node_to_ip);
+  local_node_id = getLocalNodeId();
 }
 
 void KVDistributor::rebuildRing(
@@ -103,6 +100,7 @@ void KVDistributor::rebuildRing(
   node_to_ip = node_endpoints;
   count_of_node = static_cast<int>(node_to_ip.size());
   hash_ring.rebuild(node_to_ip, virtual_nodes_per_node);
+  local_node_id = getLocalNodeId();
 }
 
 int KVDistributor::getNodeCount()
@@ -154,6 +152,7 @@ bool KVDistributor::fetchMembershipFromServer(
       node_to_ip = live;
       count_of_node = static_cast<int>(node_to_ip.size());
       hash_ring.rebuild(node_to_ip);
+      local_node_id = getLocalNodeId();
       return true;
     }
   catch(const std::exception &e)

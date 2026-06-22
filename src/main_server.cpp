@@ -9,6 +9,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <vector>
 #include <unistd.h>
 
 namespace
@@ -74,26 +75,6 @@ std::size_t parseMemorySize(const std::string &size_str)
   return size;
 }
 
-// Determine node_id by matching IP and port against config ip_addresses
-int findNodeId(const Config &config, const std::string &local_ip, int port)
-{
-  std::string port_str = ":" + std::to_string(port);
-  int count = config.read_count();
-  for(int i = 0; i < count; ++i)
-    {
-      std::string ep = config.get_endpoint(i);
-      size_t colon = ep.find(':');
-      if(colon != std::string::npos)
-        {
-          std::string ep_ip = ep.substr(0, colon);
-          std::string ep_port = ep.substr(colon);
-          if(ep_ip == local_ip && ep_port == port_str)
-            return i;
-        }
-    }
-  return -1;
-}
-
 int main(int argc, char **argv)
 {
   // Default values
@@ -101,8 +82,24 @@ int main(int argc, char **argv)
   int port = 8080;
   std::size_t mem_size = 100 * 1024 * 1024;
   StorageMode storage_mode = StorageMode::MEMORY;
+  std::string config_path = "config/server.json";
+  int node_id = 0;
+
+  // Parse --config and --node-id flags and collect positional args
+  std::vector<std::string> args;
+  for(int i = 1; i < argc; i++)
+    {
+      std::string arg = argv[i];
+      if(arg == "--config" && i + 1 < argc)
+        config_path = argv[++i];
+      else if(arg == "--node-id" && i + 1 < argc)
+        node_id = std::stoi(argv[++i]);
+      else
+        args.push_back(argv[i]);
+    }
 
   std::cout << "\n=== SERVER STARTUP DEBUG ===\n";
+  std::cout << "Config:        " << config_path << "\n";
   std::cout << "Arguments received: " << argc << std::endl;
   for(int i = 0; i < argc; i++)
     {
@@ -110,14 +107,15 @@ int main(int argc, char **argv)
     }
   std::cout << "============================\n";
 
-  if(argc >= 2)
-    protocol = argv[1];
+  size_t ai = 0;
+  if(args.size() > ai)
+    protocol = args[ai++];
 
-  if(argc >= 3)
+  if(args.size() > ai)
     {
       try
         {
-          port = std::stoi(argv[2]);
+          port = std::stoi(args[ai++]);
         }
       catch(...)
         {
@@ -125,12 +123,12 @@ int main(int argc, char **argv)
         }
     }
 
-  if(argc >= 4)
-    mem_size = parseMemorySize(argv[3]);
+  if(args.size() > ai)
+    mem_size = parseMemorySize(args[ai++]);
 
-  if(argc >= 5)
+  if(args.size() > ai)
     {
-      std::string mode_arg = argv[4];
+      std::string mode_arg = args[ai++];
       std::transform(mode_arg.begin(), mode_arg.end(), mode_arg.begin(),
                      ::tolower);
 
@@ -177,20 +175,8 @@ int main(int argc, char **argv)
   std::cout << "Address:       " << address << "\n";
   std::cout << "================================\n\n";
 
-  // Read config to determine node identity and gossip settings
-  Config config("config/config.json");
-  int node_id = findNodeId(config, local_ip, port);
-  if(node_id < 0)
-    {
-      std::cerr << "Warning: could not find node_id for port " << port
-                << " in config\n";
-      node_id = 0;
-    }
-  else
-    {
-      std::cout << "Identified as node_id=" << node_id
-                << " (endpoint: " << config.get_endpoint(node_id) << ")\n";
-    }
+  // Read config for gossip settings
+  Config config(config_path);
 
   GossipConfig gossip_cfg = config.read_gossip_config();
   std::cout << "Gossip interval: " << gossip_cfg.interval_ms << "ms\n";
