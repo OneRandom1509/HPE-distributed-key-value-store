@@ -71,6 +71,8 @@ int main(int argc, char **argv)
       std::string arg = argv[i];
       if(arg == "--config" && i + 1 < argc)
         config_path = argv[++i];
+      else if(arg == "--port" && i + 1 < argc)
+        http_port = std::stoi(argv[++i]);
       else
         args.push_back(argv[i]);
     }
@@ -88,13 +90,12 @@ int main(int argc, char **argv)
     http_port = std::stoi(args[ai++]);
 
   Config config(config_path);
-  size_t mem_size = config.read_size();
 
   try
     {
       std::string node_tag = nodeTagFromConfig(config);
       KvStore &kv_store = KvStore::get_instance(
-        mem_size, storage_mode, ConnectionMode::CLIENT, node_tag);
+        0, storage_mode, ConnectionMode::CLIENT, node_tag);
 
       spdlog::info("Connected to server storage, mode={}",
                    storage_mode == StorageMode::PERSISTENT ? "persistent"
@@ -102,7 +103,39 @@ int main(int argc, char **argv)
 
       KVDistributor distributor(kv_store, config);
 
-      spdlog::info("Using local ring with {} node(s)", distributor.getNodeCount());
+      spdlog::info("Using local ring with {} node(s)",
+                   distributor.getNodeCount());
+
+      // Background thread to refresh cluster membership every 10s
+      std::atomic<bool> membership_active{true};
+      std::thread membership_thread([&distributor, &membership_active]() {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        while(membership_active.load())
+          {
+            auto endpoints = distributor.getAllEndpoints();
+            bool refreshed = false;
+            for(const auto &ep : endpoints)
+              {
+                if(!membership_active.load())
+                  break;
+                spdlog::info("Refreshing membership from {}", ep);
+                if(distributor.fetchMembershipFromServer(ep))
+                  {
+                    spdlog::info("Membership refreshed, {} nodes in ring",
+                                 distributor.getNodeCount());
+                    refreshed = true;
+                    break;
+                  }
+                spdlog::warn(
+                  "Failed to refresh membership from {}, trying next", ep);
+              }
+            if(!refreshed)
+              spdlog::warn(
+                "Could not refresh membership from any known server");
+            for(int i = 0; i < 10 && membership_active.load(); ++i)
+              std::this_thread::sleep_for(std::chrono::seconds(1));
+          }
+      });
 
       httplib::Server svr;
       http_server = &svr;
@@ -205,6 +238,9 @@ int main(int argc, char **argv)
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
       spdlog::info("Shutting down HTTP Gateway...");
+      membership_active = false;
+      if(membership_thread.joinable())
+        membership_thread.join();
       svr.stop();
       if(http_thread.joinable())
         http_thread.join();
