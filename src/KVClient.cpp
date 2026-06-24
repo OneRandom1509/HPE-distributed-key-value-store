@@ -3,6 +3,7 @@
 #include <thallium/serialization/stl/string.hpp>
 #include <thallium/serialization/stl/vector.hpp>
 #include <chrono>
+#include <spdlog/spdlog.h>
 
 KVClient::KVClient(const std::string &protocol, uint16_t provider_id,
                    uint64_t rpc_timeout_ms)
@@ -171,7 +172,8 @@ KVClient::getMembership(const std::string &server_endpoint)
     }
   catch(const std::exception &e)
     {
-      std::cerr << "getMembership failed: " << e.what() << std::endl;
+      std::string full_ep = protocol + "://" + server_endpoint;
+      spdlog::error("getMembership failed for {}: {}", full_ep, e.what());
       return {};
     }
 }
