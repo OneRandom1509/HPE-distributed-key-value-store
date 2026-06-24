@@ -9,6 +9,7 @@
 #include <regex>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 #include <httplib.h>
 #include <spdlog/spdlog.h>
@@ -74,7 +75,7 @@ int main(int argc, char **argv)
       else if(arg == "--port" && i + 1 < argc)
         http_port = std::stoi(argv[++i]);
       else
-        args.push_back(argv[i]);
+        args.emplace_back(argv[i]);
     }
 
   size_t ai = 0;
@@ -103,136 +104,164 @@ int main(int argc, char **argv)
 
       KVDistributor distributor(kv_store, config);
 
-      spdlog::info("Using local ring with {} node(s)",
-                   distributor.getNodeCount());
+      // Populate initial ring from seed_nodes so the gateway contacts
+      // real servers via RPC.
+      auto seed_nodes = config.read_seed_nodes();
+      if(!seed_nodes.empty())
+        {
+          std::unordered_map<int, std::string> initial_nodes;
+          int id = 0;
+          for(const auto &seed : seed_nodes)
+            {
+              std::string ep = seed;
+              auto pos = ep.find("://");
+              if(pos != std::string::npos)
+                ep = ep.substr(pos + 3);
+              initial_nodes[id++] = ep;
+            }
+          distributor.rebuildRing(initial_nodes);
+          spdlog::info("Initial ring populated with {} seed node(s)",
+                       initial_nodes.size());
+        }
+
+      spdlog::info("Ring has {} node(s)", distributor.getNodeCount());
 
       // Background thread to refresh cluster membership every 10s
       std::atomic<bool> membership_active{true};
-      std::thread membership_thread([&distributor, &membership_active]() {
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-        while(membership_active.load())
-          {
-            auto endpoints = distributor.getAllEndpoints();
-            bool refreshed = false;
-            for(const auto &ep : endpoints)
-              {
-                if(!membership_active.load())
-                  break;
-                spdlog::info("Refreshing membership from {}", ep);
-                if(distributor.fetchMembershipFromServer(ep))
-                  {
-                    spdlog::info("Membership refreshed, {} nodes in ring",
-                                 distributor.getNodeCount());
-                    refreshed = true;
+      std::thread membership_thread(
+        [&distributor, &membership_active]() -> void {
+          std::this_thread::sleep_for(std::chrono::seconds(2));
+          while(membership_active.load())
+            {
+              auto endpoints = distributor.getAllEndpoints();
+              bool refreshed = false;
+              for(const auto &ep : endpoints)
+                {
+                  if(!membership_active.load())
                     break;
-                  }
+                  spdlog::info("Refreshing membership from {}", ep);
+                  if(distributor.fetchMembershipFromServer(ep))
+                    {
+                      spdlog::info("Membership refreshed, {} nodes in ring",
+                                   distributor.getNodeCount());
+                      refreshed = true;
+                      break;
+                    }
+                  spdlog::warn(
+                    "Failed to refresh membership from {}, trying next", ep);
+                }
+              if(!refreshed)
                 spdlog::warn(
-                  "Failed to refresh membership from {}, trying next", ep);
-              }
-            if(!refreshed)
-              spdlog::warn(
-                "Could not refresh membership from any known server");
-            for(int i = 0; i < 10 && membership_active.load(); ++i)
-              std::this_thread::sleep_for(std::chrono::seconds(1));
-          }
-      });
+                  "Could not refresh membership from any known server."
+                  "Check that seed_nodes in config point to running servers.");
+              for(int i = 0; i < 10 && membership_active.load(); ++i)
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+        });
 
       httplib::Server svr;
       http_server = &svr;
 
-      svr.Put(R"(/kv/(\d+))", [&distributor](const httplib::Request &req,
-                                             httplib::Response &res) {
-        try
-          {
-            int key = std::stoi(req.matches[1]);
-            spdlog::info("PUT /kv/{} ({} bytes)", key, req.body.size());
-            distributor.insert(key, req.body);
-            res.status = 201;
-            res.set_content("inserted", "text/plain");
-            spdlog::debug("PUT /kv/{} succeeded", key);
-          }
-        catch(const std::exception &e)
-          {
-            spdlog::error("PUT /kv/{} failed: {}", req.matches[1].str(),
-                          e.what());
-            res.status = 500;
-            res.set_content(e.what(), "text/plain");
-          }
-      });
+      svr.Put(R"(/kv/(\d+))",
+              [&distributor](const httplib::Request &req,
+                             httplib::Response &res) -> void {
+                try
+                  {
+                    int key = std::stoi(req.matches[1]);
+                    spdlog::info("PUT /kv/{} ({} bytes)", key,
+                                 req.body.size());
+                    distributor.insert(key, req.body);
+                    res.status = 201;
+                    res.set_content("inserted", "text/plain");
+                    spdlog::debug("PUT /kv/{} succeeded", key);
+                  }
+                catch(const std::exception &e)
+                  {
+                    spdlog::error("PUT /kv/{} failed: {}",
+                                  req.matches[1].str(), e.what());
+                    res.status = 500;
+                    res.set_content(e.what(), "text/plain");
+                  }
+              });
 
-      svr.Get(R"(/kv/(\d+))", [&distributor](const httplib::Request &req,
-                                             httplib::Response &res) {
-        try
-          {
-            int key = std::stoi(req.matches[1]);
-            spdlog::info("GET /kv/{}", key);
-            std::string value = distributor.get(key);
-            if(value == "RPC Failed" || value == "key not found")
-              {
-                res.status = 404;
-                res.set_content("not found", "text/plain");
-                spdlog::debug("GET /kv/{} -> not found", key);
-                return;
-              }
-            res.set_content(value, "text/plain");
-            spdlog::debug("GET /kv/{} succeeded ({} bytes)", key,
-                          value.size());
-          }
-        catch(const std::exception &e)
-          {
-            spdlog::error("GET /kv/{} failed: {}", req.matches[1].str(),
-                          e.what());
-            res.status = 500;
-            res.set_content(e.what(), "text/plain");
-          }
-      });
+      svr.Get(R"(/kv/(\d+))",
+              [&distributor](const httplib::Request &req,
+                             httplib::Response &res) -> void {
+                try
+                  {
+                    int key = std::stoi(req.matches[1]);
+                    spdlog::info("GET /kv/{}", key);
+                    std::string value = distributor.get(key);
+                    if(value == "RPC Failed" || value == "key not found")
+                      {
+                        res.status = 404;
+                        res.set_content("not found", "text/plain");
+                        spdlog::debug("GET /kv/{} -> not found", key);
+                        return;
+                      }
+                    res.set_content(value, "text/plain");
+                    spdlog::debug("GET /kv/{} succeeded ({} bytes)", key,
+                                  value.size());
+                  }
+                catch(const std::exception &e)
+                  {
+                    spdlog::error("GET /kv/{} failed: {}",
+                                  req.matches[1].str(), e.what());
+                    res.status = 500;
+                    res.set_content(e.what(), "text/plain");
+                  }
+              });
 
-      svr.Post(R"(/kv/(\d+))", [&distributor](const httplib::Request &req,
-                                              httplib::Response &res) {
-        try
-          {
-            int key = std::stoi(req.matches[1]);
-            spdlog::info("POST /kv/{} ({} bytes)", key, req.body.size());
-            distributor.update(key, req.body);
-            res.set_content("updated", "text/plain");
-            spdlog::debug("POST /kv/{} succeeded", key);
-          }
-        catch(const std::exception &e)
-          {
-            spdlog::error("POST /kv/{} failed: {}", req.matches[1].str(),
-                          e.what());
-            res.status = 500;
-            res.set_content(e.what(), "text/plain");
-          }
-      });
+      svr.Post(R"(/kv/(\d+))",
+               [&distributor](const httplib::Request &req,
+                              httplib::Response &res) -> void {
+                 try
+                   {
+                     int key = std::stoi(req.matches[1]);
+                     spdlog::info("POST /kv/{} ({} bytes)", key,
+                                  req.body.size());
+                     distributor.update(key, req.body);
+                     res.set_content("updated", "text/plain");
+                     spdlog::debug("POST /kv/{} succeeded", key);
+                   }
+                 catch(const std::exception &e)
+                   {
+                     spdlog::error("POST /kv/{} failed: {}",
+                                   req.matches[1].str(), e.what());
+                     res.status = 500;
+                     res.set_content(e.what(), "text/plain");
+                   }
+               });
 
-      svr.Delete(R"(/kv/(\d+))", [&distributor](const httplib::Request &req,
-                                                httplib::Response &res) {
-        try
-          {
-            int key = std::stoi(req.matches[1]);
-            spdlog::info("DELETE /kv/{}", key);
-            distributor.deleteKey(key);
-            res.status = 204;
-            spdlog::debug("DELETE /kv/{} succeeded", key);
-          }
-        catch(const std::exception &e)
-          {
-            spdlog::error("DELETE /kv/{} failed: {}", req.matches[1].str(),
-                          e.what());
-            res.status = 500;
-            res.set_content(e.what(), "text/plain");
-          }
-      });
+      svr.Delete(R"(/kv/(\d+))",
+                 [&distributor](const httplib::Request &req,
+                                httplib::Response &res) -> void {
+                   try
+                     {
+                       int key = std::stoi(req.matches[1]);
+                       spdlog::info("DELETE /kv/{}", key);
+                       distributor.deleteKey(key);
+                       res.status = 204;
+                       spdlog::debug("DELETE /kv/{} succeeded", key);
+                     }
+                   catch(const std::exception &e)
+                     {
+                       spdlog::error("DELETE /kv/{} failed: {}",
+                                     req.matches[1].str(), e.what());
+                       res.status = 500;
+                       res.set_content(e.what(), "text/plain");
+                     }
+                 });
 
-      svr.Get("/health", [](const httplib::Request &, httplib::Response &res) {
-        spdlog::debug("Health check");
-        res.set_content("OK", "text/plain");
-      });
+      svr.Get("/health",
+              [](const httplib::Request &, httplib::Response &res) -> void {
+                spdlog::debug("Health check");
+                res.set_content("OK", "text/plain");
+              });
 
       spdlog::info("HTTP Gateway listening on 0.0.0.0:{}", http_port);
       std::thread http_thread(
-        [&svr, http_port]() { svr.listen("0.0.0.0", http_port); });
+        [&svr, http_port]() -> void { svr.listen("0.0.0.0", http_port); });
 
       while(!shutdown_flag.load())
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
