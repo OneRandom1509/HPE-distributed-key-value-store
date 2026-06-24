@@ -32,7 +32,7 @@ size_t Config::read_size() const
 
 std::string Config::read_ip() const
 {
-  return config_json["local_ip"]; // assuming JSON has key "local_ip"
+  return config_json.value("local_ip", "");
 }
 
 GossipConfig Config::read_gossip_config() const

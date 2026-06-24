@@ -13,9 +13,10 @@
 class KVDistributor
 {
 public:
-  KVDistributor(KvStore &kv_store, const Config &config);
-  // Test constructor: allow injecting a mock IKVClient
-  KVDistributor(KvStore &kv_store, const Config &config, IKVClient *client);
+  // kv_store may be null (RPC-only mode)
+  KVDistributor(KvStore *kv_store, const Config &config);
+  // Test constructor: allow injecting a mock IKVClient; kv_store may be null
+  KVDistributor(KvStore *kv_store, const Config &config, IKVClient *client);
 
   int getNodeCount();
   void rebuildRing(const std::unordered_map<int, std::string> &node_endpoints,
@@ -38,7 +39,7 @@ private:
   IKVClient *kv_client;
   std::unique_ptr<KVClient> owned_kv_client;
   ConsistentHashRing hash_ring;
-  KvStore &kv;
+  KvStore *kv;
   const Config &config;
 
   std::string getNodeToIP(int node_id);

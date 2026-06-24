@@ -21,7 +21,7 @@ namespace
   }
 }
 
-KVDistributor::KVDistributor(KvStore &kv_store, const Config &config)
+KVDistributor::KVDistributor(KvStore *kv_store, const Config &config)
     : node_to_ip(), protocol(config.read_protocol()), provider_id(1),
       kv_client(nullptr), owned_kv_client(), hash_ring(), kv(kv_store),
       config(config)
@@ -40,7 +40,7 @@ KVDistributor::KVDistributor(KvStore &kv_store, const Config &config)
   kv_client = owned_kv_client.get();
 }
 
-KVDistributor::KVDistributor(KvStore &kv_store, const Config &config,
+KVDistributor::KVDistributor(KvStore *kv_store, const Config &config,
                              IKVClient *client)
     : node_to_ip(), protocol(config.read_protocol()), provider_id(1),
       kv_client(client), owned_kv_client(), hash_ring(), kv(kv_store),
@@ -133,6 +133,8 @@ bool KVDistributor::fetchMembershipFromServer(
   try
     {
       auto members = kv_client->getMembership(server_endpoint);
+      spdlog::debug("fetchMembershipFromServer: got {} member(s) from {}",
+                    members.size(), server_endpoint);
       std::unordered_map<int, std::string> live;
       for(const auto &m : members)
         {
@@ -144,8 +146,21 @@ bool KVDistributor::fetchMembershipFromServer(
             ep = ep.substr(pos + 3);
           live[m.node_id] = ep;
         }
+      spdlog::debug(
+        "fetchMembershipFromServer: {} ALIVE member(s) after filtering",
+        live.size());
+
       if(live.empty())
-        return false;
+        {
+          // Log one member's status for debugging
+          if(!members.empty())
+            {
+              auto &m = members.front();
+              spdlog::warn("First member: id={} status={} endpoint={}",
+                           m.node_id, static_cast<int>(m.status), m.endpoint);
+            }
+          return false;
+        }
       std::lock_guard<std::mutex> lock(ring_mutex_);
       if(live == node_to_ip)
         return true;
@@ -173,9 +188,9 @@ bool KVDistributor::readFromNode(int node_id, int key, std::string &value)
     "KVDistributor read key={} hash={} node={} endpoint={} local={}", key,
     hash, node_id, getNodeToIP(node_id), isLocalNode(node_id));
 
-  if(isLocalNode(node_id))
+  if(isLocalNode(node_id) && kv)
     {
-      value = kv.Find(key);
+      value = kv->Find(key);
       return !isMissOrError(value);
     }
 
@@ -205,14 +220,14 @@ void KVDistributor::writeToNode(int node_id, int key, const std::string &value,
                 op_name, key, hash, node_id, getNodeToIP(node_id),
                 isLocalNode(node_id));
 
-  if(isLocalNode(node_id))
+  if(isLocalNode(node_id) && kv)
     {
       try
         {
           if(op == RemoteOp::INSERT)
-            kv.Insert(key, value);
+            kv->Insert(key, value);
           else if(op == RemoteOp::UPDATE)
-            kv.Update(key, value);
+            kv->Update(key, value);
         }
       catch(const std::exception &e)
         {
@@ -250,11 +265,11 @@ void KVDistributor::deleteOnNode(int node_id, int key)
     "KVDistributor delete key={} hash={} node={} endpoint={} local={}", key,
     hash, node_id, getNodeToIP(node_id), isLocalNode(node_id));
 
-  if(isLocalNode(node_id))
+  if(isLocalNode(node_id) && kv)
     {
       try
         {
-          kv.Delete(key);
+          kv->Delete(key);
         }
       catch(const std::exception &e)
         {
