@@ -544,7 +544,7 @@ int main(int argc, char **argv)
                 << std::endl;
 
       // Pass the local_store to ThalliumDistributor
-      KVDistributor distributor(kv_store, config);
+      KVDistributor distributor(&kv_store, config);
 
       // Background thread to refresh cluster membership every 10s
       std::atomic<bool> membership_active{true};
@@ -566,8 +566,8 @@ int main(int argc, char **argv)
                     refreshed = true;
                     break;
                   }
-                spdlog::warn("Failed to refresh membership from {}, trying next",
-                             ep);
+                spdlog::warn(
+                  "Failed to refresh membership from {}, trying next", ep);
               }
             if(!refreshed)
               spdlog::warn(
