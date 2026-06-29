@@ -40,7 +40,8 @@ std::string KVClient::fetch(int key, std::string &server_endpoint)
         }
       t.stop();
       std::cout << "Key Found on the Server.\n";
-      std::cout << key << "->" << value << '\n';
+      std::cout << "0x" << std::hex << key << std::dec << "->" << value
+                << '\n';
       t.print("Fetch");
     }
   catch(const std::exception &e)
@@ -73,8 +74,8 @@ void KVClient::insert(int key, const std::string value,
           remote_kv_insert.on(ph)(key, value);
         }
       t.stop();
-      std::cout << "Inserted on the server successfully: " << key << " -> "
-                << value << std::endl;
+      std::cout << "Inserted on the server successfully: 0x" << std::hex << key
+                << std::dec << " -> " << value << std::endl;
       t.print("Insert");
     }
   catch(const std::exception &e)
@@ -105,8 +106,8 @@ void KVClient::update(int key, const std::string value,
           remote_kv_update.on(ph)(key, value);
         }
       t.stop();
-      std::cout << "Updated successfully: " << key << " -> " << value
-                << std::endl;
+      std::cout << "Updated successfully: 0x" << std::hex << key << std::dec
+                << " -> " << value << std::endl;
       t.print("Update");
     }
   catch(const std::exception &e)
@@ -136,7 +137,8 @@ void KVClient::deleteKey(int key, const std::string &server_endpoint)
           remote_kv_delete.on(ph)(key);
         }
       t.stop();
-      std::cout << "Deleted successfully: " << key << std::endl;
+      std::cout << "Deleted successfully: 0x" << std::hex << key << std::dec
+                << std::endl;
       t.print("Delete");
     }
   catch(const std::exception &e)
