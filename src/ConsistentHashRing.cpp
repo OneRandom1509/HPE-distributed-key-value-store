@@ -107,6 +107,58 @@ int ConsistentHashRing::getBuddyNode(int key) const
   return start->node_id;
 }
 
+std::vector<KeyRangeAssignment>
+ConsistentHashRing::getKeyRangeAssignments() const
+{
+  std::vector<KeyRangeAssignment> result;
+
+  if(ring_.empty())
+    return result;
+
+  const size_t n = ring_.size();
+  for(size_t i = 0; i < n; ++i)
+    {
+      uint32_t cur_pos = ring_[i].position;
+      uint32_t prev_pos = ring_[(i + n - 1) % n].position;
+      int primary_id = ring_[i].node_id;
+
+      uint32_t start = prev_pos + 1;
+      uint32_t end = cur_pos + 1;
+
+      int buddy_id = primary_id;
+      for(size_t j = 1; j < n; ++j)
+        {
+          size_t idx = (i + j) % n;
+          if(ring_[idx].node_id != primary_id)
+            {
+              buddy_id = ring_[idx].node_id;
+              break;
+            }
+        }
+
+      if(start < end)
+        {
+          result.push_back(
+            {{.start = start, .end = end}, primary_id, buddy_id});
+        }
+      else if(start > end)
+        {
+          result.push_back(
+            {{.start = start, .end = UINT32_MAX}, primary_id, buddy_id});
+          if(end > 0)
+            result.push_back({{.start = 0, .end = end}, primary_id, buddy_id});
+        }
+      else
+        {
+          if(n == 1)
+            result.push_back(
+              {{.start = 0, .end = UINT32_MAX}, primary_id, buddy_id});
+        }
+    }
+
+  return result;
+}
+
 std::unordered_map<int, std::vector<KeyRange>>
 ConsistentHashRing::getKeyRanges() const
 {
