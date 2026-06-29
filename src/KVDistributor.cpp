@@ -171,8 +171,8 @@ bool KVDistributor::readFromNode(int node_id, int key, std::string &value)
 
   const uint32_t hash = keyHash(key);
   spdlog::debug(
-    "KVDistributor read key={} hash={} node={} endpoint={} local={}", key,
-    hash, node_id, getNodeToIP(node_id), isLocalNode(node_id));
+    "KVDistributor read hash=0x{:08X} node={} endpoint={} local={}", hash,
+    node_id, getNodeToIP(node_id), isLocalNode(node_id));
 
   if(isLocalNode(node_id))
     {
@@ -202,8 +202,8 @@ void KVDistributor::writeToNode(int node_id, int key, const std::string &value,
 
   const uint32_t hash = keyHash(key);
   const char *op_name = (op == RemoteOp::INSERT) ? "insert" : "update";
-  spdlog::debug("KVDistributor {} key={} hash={} node={} endpoint={} local={}",
-                op_name, key, hash, node_id, getNodeToIP(node_id),
+  spdlog::debug("KVDistributor {} hash=0x{:08X} node={} endpoint={} local={}",
+                op_name, hash, node_id, getNodeToIP(node_id),
                 isLocalNode(node_id));
 
   if(isLocalNode(node_id))
@@ -248,8 +248,8 @@ void KVDistributor::deleteOnNode(int node_id, int key)
 
   const uint32_t hash = keyHash(key);
   spdlog::debug(
-    "KVDistributor delete key={} hash={} node={} endpoint={} local={}", key,
-    hash, node_id, getNodeToIP(node_id), isLocalNode(node_id));
+    "KVDistributor delete hash=0x{:08X} node={} endpoint={} local={}", hash,
+    node_id, getNodeToIP(node_id), isLocalNode(node_id));
 
   if(isLocalNode(node_id))
     {
@@ -285,8 +285,8 @@ std::string KVDistributor::get(int key)
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
 
-  spdlog::debug("KVDistributor get key={} hash={} primary={} buddy={}", key,
-                hash, primary_node_id, buddy_node_id);
+  spdlog::debug("KVDistributor get hash=0x{:08X} primary={} buddy={}", hash,
+                primary_node_id, buddy_node_id);
 
   if(readFromNode(primary_node_id, key, value))
     {
@@ -309,8 +309,8 @@ void KVDistributor::insert(int key, const std::string &value)
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
 
-  spdlog::debug("KVDistributor insert key={} hash={} primary={} buddy={}", key,
-                hash, primary_node_id, buddy_node_id);
+  spdlog::debug("KVDistributor insert hash=0x{:08X} primary={} buddy={}", hash,
+                primary_node_id, buddy_node_id);
 
   writeToNode(primary_node_id, key, value, RemoteOp::INSERT);
   if(buddy_node_id != primary_node_id)
@@ -324,8 +324,8 @@ void KVDistributor::update(int key, const std::string &value)
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
 
-  spdlog::debug("KVDistributor update key={} hash={} primary={} buddy={}", key,
-                hash, primary_node_id, buddy_node_id);
+  spdlog::debug("KVDistributor update hash=0x{:08X} primary={} buddy={}", hash,
+                primary_node_id, buddy_node_id);
 
   writeToNode(primary_node_id, key, value, RemoteOp::UPDATE);
   if(buddy_node_id != primary_node_id)
@@ -339,8 +339,8 @@ void KVDistributor::deleteKey(int key)
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
 
-  spdlog::debug("KVDistributor delete key={} hash={} primary={} buddy={}", key,
-                hash, primary_node_id, buddy_node_id);
+  spdlog::debug("KVDistributor delete hash=0x{:08X} primary={} buddy={}", hash,
+                primary_node_id, buddy_node_id);
 
   deleteOnNode(primary_node_id, key);
   if(buddy_node_id != primary_node_id)
