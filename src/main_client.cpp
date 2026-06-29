@@ -75,22 +75,11 @@ std::string generateRandomString(int length)
   return result;
 }
 
-// Helper function to determine if a key is local based on consistent hashing
-bool isKeyLocal(int key, int local_node_id, int total_nodes)
-{
-  // Simple modulo-based distribution (modify this based on your actual hash
-  // function)
-  int target_node = key % total_nodes;
-  return target_node == local_node_id;
-}
-
 // Benchmark function with sequential fetch pattern
 void benchmark(KVDistributor &distributor)
 {
   const int NUM_OPERATIONS = 10000;
   const int VALUE_SIZE = 3;
-  const int LOCAL_NODE_ID = 0; // From your config file
-  const int TOTAL_NODES = 2;   // From your config file
 
   std::cout << "\n=== BENCHMARK (Sequential Fetch Pattern) ===" << std::endl;
   std::cout << "Inserting " << NUM_OPERATIONS << " key-value pairs..."
@@ -116,24 +105,17 @@ void benchmark(KVDistributor &distributor)
     end_insert - start_insert);
   std::cout << "Insertion completed!" << std::endl;
 
-  // Phase 2: Sequential Fetch with local/remote tracking
+  // Phase 2: Sequential Fetch
   std::cout << "\nFetching " << NUM_OPERATIONS
             << " key-value pairs sequentially..." << std::endl;
   std::vector<double> fetch_times;
-  std::vector<double> local_fetch_times;
-  std::vector<double> remote_fetch_times;
   fetch_times.reserve(NUM_OPERATIONS);
-  local_fetch_times.reserve(NUM_OPERATIONS);
-  remote_fetch_times.reserve(NUM_OPERATIONS);
 
   auto start_fetch_all = std::chrono::high_resolution_clock::now();
   for(int i = 1; i <= NUM_OPERATIONS; ++i)
     {
       try
         {
-          // Check if key exists locally based on hash distribution
-          bool is_local = isKeyLocal(i, LOCAL_NODE_ID, TOTAL_NODES);
-
           auto start_single_fetch = std::chrono::high_resolution_clock::now();
           std::string value = distributor.get(i);
           auto end_single_fetch = std::chrono::high_resolution_clock::now();
@@ -145,15 +127,6 @@ void benchmark(KVDistributor &distributor)
             = static_cast<double>(single_fetch_duration.count()) / 1000.0;
 
           fetch_times.push_back(fetch_time_ms);
-
-          if(is_local)
-            {
-              local_fetch_times.push_back(fetch_time_ms);
-            }
-          else
-            {
-              remote_fetch_times.push_back(fetch_time_ms);
-            }
         }
       catch(const std::exception &e)
         {
@@ -195,74 +168,6 @@ void benchmark(KVDistributor &distributor)
       std::cout << "Maximum fetch time: " << max_time << " ms" << std::endl;
       std::cout << "Successful fetches: " << fetch_times.size() << "/"
                 << NUM_OPERATIONS << std::endl;
-
-      // Local fetch statistics
-      if(!local_fetch_times.empty())
-        {
-          double local_total = std::accumulate(local_fetch_times.begin(),
-                                               local_fetch_times.end(), 0.0);
-          double local_avg = local_total / local_fetch_times.size();
-          double local_min = *std::min_element(local_fetch_times.begin(),
-                                               local_fetch_times.end());
-          double local_max = *std::max_element(local_fetch_times.begin(),
-                                               local_fetch_times.end());
-
-          std::cout << "--- LOCAL FETCH METRICS ---" << std::endl;
-          std::cout << "Local fetches count: " << local_fetch_times.size()
-                    << std::endl;
-          std::cout << "Local fetch percentage: "
-                    << (static_cast<double>(local_fetch_times.size())
-                        / fetch_times.size())
-                         * 100.0
-                    << "%" << std::endl;
-          std::cout << "Average local fetch time: " << local_avg << " ms"
-                    << std::endl;
-          std::cout << "Minimum local fetch time: " << local_min << " ms"
-                    << std::endl;
-          std::cout << "Maximum local fetch time: " << local_max << " ms"
-                    << std::endl;
-          std::cout << "Total local fetch time: " << local_total << " ms"
-                    << std::endl;
-        }
-      else
-        {
-          std::cout << "--- LOCAL FETCH METRICS ---" << std::endl;
-          std::cout << "No local fetches performed" << std::endl;
-        }
-
-      // Remote fetch statistics
-      if(!remote_fetch_times.empty())
-        {
-          double remote_total = std::accumulate(remote_fetch_times.begin(),
-                                                remote_fetch_times.end(), 0.0);
-          double remote_avg = remote_total / remote_fetch_times.size();
-          double remote_min = *std::min_element(remote_fetch_times.begin(),
-                                                remote_fetch_times.end());
-          double remote_max = *std::max_element(remote_fetch_times.begin(),
-                                                remote_fetch_times.end());
-
-          std::cout << "--- REMOTE FETCH METRICS ---" << std::endl;
-          std::cout << "Remote fetches count: " << remote_fetch_times.size()
-                    << std::endl;
-          std::cout << "Remote fetch percentage: "
-                    << (static_cast<double>(remote_fetch_times.size())
-                        / fetch_times.size())
-                         * 100.0
-                    << "%" << std::endl;
-          std::cout << "Average remote fetch time: " << remote_avg << " ms"
-                    << std::endl;
-          std::cout << "Minimum remote fetch time: " << remote_min << " ms"
-                    << std::endl;
-          std::cout << "Maximum remote fetch time: " << remote_max << " ms"
-                    << std::endl;
-          std::cout << "Total remote fetch time: " << remote_total << " ms"
-                    << std::endl;
-        }
-      else
-        {
-          std::cout << "--- REMOTE FETCH METRICS ---" << std::endl;
-          std::cout << "No remote fetches performed" << std::endl;
-        }
     }
 }
 
@@ -271,8 +176,6 @@ void benchmark1(KVDistributor &distributor)
 {
   const int NUM_OPERATIONS = 10000;
   const int VALUE_SIZE = 3;
-  const int LOCAL_NODE_ID = 0; // From your config file
-  const int TOTAL_NODES = 2;   // From your config file
 
   std::cout << "\n=== BENCHMARK1 (Random Fetch Pattern) ===" << std::endl;
   std::cout << "Inserting " << NUM_OPERATIONS << " key-value pairs..."
@@ -298,21 +201,16 @@ void benchmark1(KVDistributor &distributor)
     end_insert - start_insert);
   std::cout << "Insertion completed!" << std::endl;
 
-  // Phase 2: Random Fetch with local/remote tracking
+  // Phase 2: Random Fetch
   std::cout << "\nFetching " << NUM_OPERATIONS
             << " key-value pairs randomly..." << std::endl;
 
-  // Setup random number generator
   std::random_device rd;
   std::mt19937 gen(rd());
   std::uniform_int_distribution<> key_dist(1, NUM_OPERATIONS);
 
   std::vector<double> fetch_times;
-  std::vector<double> local_fetch_times;
-  std::vector<double> remote_fetch_times;
   fetch_times.reserve(NUM_OPERATIONS);
-  local_fetch_times.reserve(NUM_OPERATIONS);
-  remote_fetch_times.reserve(NUM_OPERATIONS);
 
   auto start_fetch_all = std::chrono::high_resolution_clock::now();
   for(int i = 0; i < NUM_OPERATIONS; ++i)
@@ -320,9 +218,6 @@ void benchmark1(KVDistributor &distributor)
       try
         {
           int random_key = key_dist(gen);
-
-          // Check if key exists locally based on hash distribution
-          bool is_local = isKeyLocal(random_key, LOCAL_NODE_ID, TOTAL_NODES);
 
           auto start_single_fetch = std::chrono::high_resolution_clock::now();
           std::string value = distributor.get(random_key);
@@ -335,15 +230,6 @@ void benchmark1(KVDistributor &distributor)
             = static_cast<double>(single_fetch_duration.count()) / 1000.0;
 
           fetch_times.push_back(fetch_time_ms);
-
-          if(is_local)
-            {
-              local_fetch_times.push_back(fetch_time_ms);
-            }
-          else
-            {
-              remote_fetch_times.push_back(fetch_time_ms);
-            }
         }
       catch(const std::exception &e)
         {
@@ -355,7 +241,6 @@ void benchmark1(KVDistributor &distributor)
     = std::chrono::duration_cast<std::chrono::milliseconds>(end_fetch_all
                                                             - start_fetch_all);
 
-  // Calculate overall statistics
   if(!fetch_times.empty())
     {
       double total_time
@@ -368,15 +253,12 @@ void benchmark1(KVDistributor &distributor)
 
       std::cout << "\n=== RANDOM BENCHMARK RESULTS ===" << std::endl;
       std::cout << std::fixed << std::setprecision(4);
-      std::cout << "--- INSERTION METRICS ---" << std::endl;
       std::cout << "Total insertion time: " << insert_duration.count() << " ms"
                 << std::endl;
       std::cout << "Average insertion time per operation: "
                 << static_cast<double>(insert_duration.count())
                      / NUM_OPERATIONS
                 << " ms" << std::endl;
-
-      std::cout << "--- OVERALL FETCH METRICS ---" << std::endl;
       std::cout << "Total fetch time: " << total_fetch_duration.count()
                 << " ms" << std::endl;
       std::cout << "Average fetch time: " << avg_time << " ms" << std::endl;
@@ -384,74 +266,6 @@ void benchmark1(KVDistributor &distributor)
       std::cout << "Maximum fetch time: " << max_time << " ms" << std::endl;
       std::cout << "Successful fetches: " << fetch_times.size() << "/"
                 << NUM_OPERATIONS << std::endl;
-
-      // Local fetch statistics
-      if(!local_fetch_times.empty())
-        {
-          double local_total = std::accumulate(local_fetch_times.begin(),
-                                               local_fetch_times.end(), 0.0);
-          double local_avg = local_total / local_fetch_times.size();
-          double local_min = *std::min_element(local_fetch_times.begin(),
-                                               local_fetch_times.end());
-          double local_max = *std::max_element(local_fetch_times.begin(),
-                                               local_fetch_times.end());
-
-          std::cout << "--- LOCAL FETCH METRICS ---" << std::endl;
-          std::cout << "Local fetches count: " << local_fetch_times.size()
-                    << std::endl;
-          std::cout << "Local fetch percentage: "
-                    << (static_cast<double>(local_fetch_times.size())
-                        / fetch_times.size())
-                         * 100.0
-                    << "%" << std::endl;
-          std::cout << "Average local fetch time: " << local_avg << " ms"
-                    << std::endl;
-          std::cout << "Minimum local fetch time: " << local_min << " ms"
-                    << std::endl;
-          std::cout << "Maximum local fetch time: " << local_max << " ms"
-                    << std::endl;
-          std::cout << "Total local fetch time: " << local_total << " ms"
-                    << std::endl;
-        }
-      else
-        {
-          std::cout << "--- LOCAL FETCH METRICS ---" << std::endl;
-          std::cout << "No local fetches performed" << std::endl;
-        }
-
-      // Remote fetch statistics
-      if(!remote_fetch_times.empty())
-        {
-          double remote_total = std::accumulate(remote_fetch_times.begin(),
-                                                remote_fetch_times.end(), 0.0);
-          double remote_avg = remote_total / remote_fetch_times.size();
-          double remote_min = *std::min_element(remote_fetch_times.begin(),
-                                                remote_fetch_times.end());
-          double remote_max = *std::max_element(remote_fetch_times.begin(),
-                                                remote_fetch_times.end());
-
-          std::cout << "--- REMOTE FETCH METRICS ---" << std::endl;
-          std::cout << "Remote fetches count: " << remote_fetch_times.size()
-                    << std::endl;
-          std::cout << "Remote fetch percentage: "
-                    << (static_cast<double>(remote_fetch_times.size())
-                        / fetch_times.size())
-                         * 100.0
-                    << "%" << std::endl;
-          std::cout << "Average remote fetch time: " << remote_avg << " ms"
-                    << std::endl;
-          std::cout << "Minimum remote fetch time: " << remote_min << " ms"
-                    << std::endl;
-          std::cout << "Maximum remote fetch time: " << remote_max << " ms"
-                    << std::endl;
-          std::cout << "Total remote fetch time: " << remote_total << " ms"
-                    << std::endl;
-        }
-      else
-        {
-          std::cout << "--- REMOTE FETCH METRICS ---" << std::endl;
-          std::cout << "No remote fetches performed" << std::endl;
-        }
     }
 }
 
@@ -560,8 +374,8 @@ int main(int argc, char **argv)
                     refreshed = true;
                     break;
                   }
-                spdlog::warn("Failed to refresh membership from {}, trying next",
-                             ep);
+                spdlog::warn(
+                  "Failed to refresh membership from {}, trying next", ep);
               }
             if(!refreshed)
               spdlog::warn(
