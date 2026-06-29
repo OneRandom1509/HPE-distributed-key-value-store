@@ -229,17 +229,17 @@ int main(int argc, char **argv)
   membership.setChangeCallback(
     [server_ring](const std::unordered_map<int, std::string> &live) -> void {
       std::cout << "[Gossip] Ring rebuild triggered, " << live.size()
-                << " live nodes\n";
+                << " live nodes" << std::endl;
       server_ring->rebuild(live);
       for(const auto &[id, ep] : live)
-        std::cout << "  Node " << id << " -> " << ep << "\n";
+        std::cout << "  Node " << id << " -> " << ep << std::endl;
 
       auto assignments = server_ring->getKeyRangeAssignments();
       for(const auto &a : assignments)
         std::cout << "  [0x" << std::hex << a.range.start << std::dec << ", 0x"
                   << std::hex << a.range.end << std::dec << ") : primary - "
-                  << a.primary_node_id << ", buddy - " << a.buddy_node_id
-                  << "\n";
+                   << a.primary_node_id << ", buddy - " << a.buddy_node_id
+                   << std::endl;
     });
 
   // Create and start KVServer (with membership pointer for gossip RPC)

@@ -486,6 +486,7 @@ int main(int argc, char **argv)
     }
 
   spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
+  spdlog::flush_on(spdlog::level::info);
 
   std::cout << "\nModulo-based Key-Value Store CLIENT" << std::endl;
   std::cout << "===================================" << std::endl;
