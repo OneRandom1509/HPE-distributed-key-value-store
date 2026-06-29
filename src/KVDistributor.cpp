@@ -296,6 +296,9 @@ std::string KVDistributor::get(int key)
   if(buddy_node_id != primary_node_id
      && readFromNode(buddy_node_id, key, value))
     {
+      spdlog::info("Lazy migrating key hash=0x{:08X} from node {} to node {}",
+                   hash, buddy_node_id, primary_node_id);
+      writeToNode(primary_node_id, key, value, RemoteOp::INSERT);
       return value;
     }
 
