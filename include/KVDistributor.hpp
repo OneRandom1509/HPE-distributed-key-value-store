@@ -2,6 +2,7 @@
 #define KVDISTRIBUTOR_HPP
 
 #include "KVClient.hpp"
+#include "ConsistentHashRing.hpp"
 #include "KVStore.hpp"
 #include "config.hpp"
 #include <unordered_map>
@@ -9,29 +10,44 @@
 
 class KVDistributor
 {
+public:
+  KVDistributor(KvStore &kv_store, const Config &config);
+  // Test constructor: allow injecting a mock IKVClient
+  KVDistributor(KvStore &kv_store, const Config &config, IKVClient *client);
+
+  int getNodeCount();
+  void rebuildRing(const std::unordered_map<int, std::string> &node_endpoints,
+                   int virtual_nodes_per_node = 150);
+  std::string get(int key);
+  void insert(int key, const std::string &value);
+  void update(int key, const std::string &value);
+  void deleteKey(int key);
+
 private:
   int count_of_node = 0;
   std::unordered_map<int, std::string> node_to_ip;
   std::string protocol;
   int local_node_id = 0;
   uint8_t provider_id = 0;
-  KVClient kv_client;
+  IKVClient *kv_client;
+  std::unique_ptr<KVClient> owned_kv_client;
+  ConsistentHashRing hash_ring;
   KvStore &kv;
-  const Config &config; // <-- added const reference to Config
+  const Config &config;
 
-  int getNodeId(int key);
   std::string getNodeToIP(int node_id);
   int getLocalNodeId();
-
-public:
-  KVDistributor(KvStore &kv_store,
-                const Config &config); // <-- constructor updated
-
-  int getNodeCount();
-  std::string get(int key);
-  void insert(int key, const std::string &value);
-  void update(int key, const std::string &value);
-  void deleteKey(int key);
+  bool isLocalNode(int node_id) const;
+  void rebuildRing();
+  bool readFromNode(int node_id, int key, std::string &value);
+  enum class RemoteOp
+  {
+    INSERT,
+    UPDATE
+  };
+  void
+  writeToNode(int node_id, int key, const std::string &value, RemoteOp op);
+  void deleteOnNode(int node_id, int key);
 };
 
 #endif // KVDISTRIBUTOR_HPP

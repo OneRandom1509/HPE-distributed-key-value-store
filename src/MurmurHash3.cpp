@@ -143,6 +143,13 @@ void MurmurHash3_x86_32(const void *key, int len, uint32_t seed, void *out)
   *(uint32_t *)out = h1;
 }
 
+uint32_t murmur3_32(const void *key, int len, uint32_t seed)
+{
+  uint32_t hash = 0;
+  MurmurHash3_x86_32(key, len, seed, &hash);
+  return hash;
+}
+
 //-----------------------------------------------------------------------------
 
 void MurmurHash3_x86_128(const void *key, const int len, uint32_t seed,

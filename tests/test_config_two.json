@@ -1,0 +1,8 @@
+{
+  "provider_id": 1,
+  "protocol": "ofi+tcp",
+  "count_of_node": 2,
+  "ip_addresses": { "0": "127.0.0.1:5000", "1": "127.0.0.2:5001" },
+  "size": 1,
+  "local_ip": "127.0.0.1:5000"
+}

@@ -59,8 +59,10 @@ struct MemoryStats
 class KvStore
 {
 private:
-  static const std::string PERSISTENT_FILE_PATH;
-  static const char *MUTEX_NAME;
+  // Default names are now instance-based to support per-node storage
+  std::string persistent_file_path;
+  std::string mutex_name;
+  std::string shm_name;
 
   std::size_t total_memory_size;
   StorageMode storage_mode;
@@ -75,7 +77,8 @@ private:
   MappedHashMap *persistent_map_ptr;
 
   // Private constructor for singleton
-  KvStore(std::size_t size, StorageMode mode, ConnectionMode conn_mode);
+  KvStore(std::size_t size, StorageMode mode, ConnectionMode conn_mode,
+          const std::string &node_tag = "");
 
   // Helper methods
   void createMemoryStorage(std::size_t size);
@@ -90,7 +93,8 @@ public:
   // Singleton access
   static KvStore &
   get_instance(std::size_t size, StorageMode mode,
-               ConnectionMode conn_mode = ConnectionMode::SERVER);
+               ConnectionMode conn_mode = ConnectionMode::SERVER,
+               const std::string &node_tag = "");
 
   // Disable copy constructor and assignment
   KvStore(const KvStore &) = delete;

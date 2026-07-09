@@ -14,6 +14,7 @@
 #include <thread>
 #include <unistd.h>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 // Helper function to parse command arguments
 std::vector<std::string> parseCommand(const std::string &command)
@@ -455,6 +456,36 @@ void benchmark1(KVDistributor &distributor)
 
 int main(int argc, char **argv)
 {
+  // Initialize logging level from environment
+  const char *env_log = std::getenv("LOG_LEVEL");
+  if(env_log)
+    {
+      std::string lvl(env_log);
+      std::transform(lvl.begin(), lvl.end(), lvl.begin(), ::tolower);
+      if(lvl == "trace")
+        spdlog::set_level(spdlog::level::trace);
+      else if(lvl == "debug")
+        spdlog::set_level(spdlog::level::debug);
+      else if(lvl == "info")
+        spdlog::set_level(spdlog::level::info);
+      else if(lvl == "warn" || lvl == "warning")
+        spdlog::set_level(spdlog::level::warn);
+      else if(lvl == "err" || lvl == "error")
+        spdlog::set_level(spdlog::level::err);
+      else if(lvl == "critical")
+        spdlog::set_level(spdlog::level::critical);
+      else if(lvl == "off")
+        spdlog::set_level(spdlog::level::off);
+      else
+        spdlog::set_level(spdlog::level::info);
+    }
+  else
+    {
+      spdlog::set_level(spdlog::level::info);
+    }
+
+  spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
+
   std::cout << "\nModulo-based Key-Value Store CLIENT" << std::endl;
   std::cout << "===================================" << std::endl;
 
@@ -485,8 +516,17 @@ int main(int argc, char **argv)
   try
     {
       // CLIENT mode - connect to existing storage instead of creating new
-      KvStore &kv_store = KvStore::get_instance(mem_size, storage_mode,
-                                                ConnectionMode::CLIENT);
+      // Determine node_tag from configured first endpoint port so the client
+      // connects to the same per-node shared memory the server created.
+      Config config = Config("config/config.json");
+      std::string first_ep = config.get_endpoint(0);
+      std::string node_tag = "";
+      auto pos = first_ep.rfind(':');
+      if(pos != std::string::npos && pos + 1 < first_ep.size())
+        node_tag = first_ep.substr(pos + 1);
+
+      KvStore &kv_store = KvStore::get_instance(
+        mem_size, storage_mode, ConnectionMode::CLIENT, node_tag);
 
       std::cout << "Storage Mode: "
                 << (storage_mode == StorageMode::PERSISTENT ? "PERSISTENT"

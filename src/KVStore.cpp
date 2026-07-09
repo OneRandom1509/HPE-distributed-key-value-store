@@ -3,17 +3,16 @@
 #include <iomanip>
 #include <sstream>
 
-// Static member definitions
-const char *KvStore::MUTEX_NAME = "SharedMapMutex";
-const std::string KvStore::PERSISTENT_FILE_PATH = "./kvstore_persistent.dat";
+// Note: persistent file path, shm name and mutex name are per-instance now
 
 // Memory size constants
 const std::size_t MB = 1024 * 1024;
 const std::size_t DEFAULT_MEMORY_SIZE = 500 * MB;
 
 // Modified get_instance method
-KvStore &KvStore::get_instance(std::size_t size, StorageMode mode,
-                               ConnectionMode conn_mode)
+KvStore &
+KvStore::get_instance(std::size_t size, StorageMode mode,
+                      ConnectionMode conn_mode, const std::string &node_tag)
 {
   std::cout << "[get_instance] Initializing KvStore with " << (size / MB)
             << "MB in "
@@ -22,14 +21,17 @@ KvStore &KvStore::get_instance(std::size_t size, StorageMode mode,
             << (conn_mode == ConnectionMode::SERVER ? "SERVER" : "CLIENT")
             << "\n";
   static KvStore instance(size > 0 ? size : DEFAULT_MEMORY_SIZE, mode,
-                          conn_mode);
+                          conn_mode, node_tag);
   return instance;
 }
 
 // Modified constructor
-KvStore::KvStore(std::size_t size, StorageMode mode, ConnectionMode conn_mode)
+KvStore::KvStore(std::size_t size, StorageMode mode, ConnectionMode conn_mode,
+                 const std::string &node_tag)
     : total_memory_size(size), storage_mode(mode), conn_mode(conn_mode),
-      memory_map_ptr(nullptr), persistent_map_ptr(nullptr)
+      memory_map_ptr(nullptr), persistent_map_ptr(nullptr),
+      persistent_file_path("./kvstore_persistent.dat"),
+      mutex_name("SharedMapMutex"), shm_name("Project")
 {
   std::cout << "[KvStore] Constructor started with " << (size / MB)
             << "MB allocation in "
@@ -40,6 +42,16 @@ KvStore::KvStore(std::size_t size, StorageMode mode, ConnectionMode conn_mode)
 
   try
     {
+      // If a node_tag was provided, append it to names to create per-node
+      // storage
+      if(!node_tag.empty())
+        {
+          shm_name = std::string("Project_") + node_tag;
+          persistent_file_path = std::string("./kvstore_persistent_")
+                                 + node_tag + std::string(".dat");
+          mutex_name = std::string("SharedMapMutex_") + node_tag;
+        }
+
       if(mode == StorageMode::MEMORY)
         {
           if(conn_mode == ConnectionMode::SERVER)
@@ -66,9 +78,9 @@ KvStore::KvStore(std::size_t size, StorageMode mode, ConnectionMode conn_mode)
       // Handle mutex
       if(conn_mode == ConnectionMode::SERVER)
         {
-          named_mutex::remove(MUTEX_NAME);
+          named_mutex::remove(mutex_name.c_str());
         }
-      named_mutex mutex(open_or_create, MUTEX_NAME);
+      named_mutex mutex(open_or_create, mutex_name.c_str());
       std::cout << "[KvStore] Mutex "
                 << (conn_mode == ConnectionMode::SERVER ? "created"
                                                         : "connected")
@@ -99,14 +111,14 @@ KvStore::KvStore(std::size_t size, StorageMode mode, ConnectionMode conn_mode)
           if(storage_mode == StorageMode::MEMORY)
             {
               memory_storage = std::make_unique<managed_shared_memory>(
-                open_only, "Project");
+                open_only, shm_name.c_str());
               memory_map_ptr
                 = memory_storage->find<MemoryHashMap>("SharedMap").first;
             }
           else
             {
               file_storage = std::make_unique<managed_mapped_file>(
-                open_only, PERSISTENT_FILE_PATH.c_str());
+                open_only, persistent_file_path.c_str());
               persistent_map_ptr
                 = file_storage->find<MappedHashMap>("SharedMap").first;
             }
@@ -120,8 +132,7 @@ KvStore::KvStore(std::size_t size, StorageMode mode, ConnectionMode conn_mode)
           std::cout << "[KvStore] Creating new storage after cleanup\n";
 
           cleanupStorage();
-          named_mutex::remove(MUTEX_NAME);
-
+          named_mutex::remove(mutex_name.c_str());
           if(storage_mode == StorageMode::MEMORY)
             {
               createMemoryStorage(size);
@@ -131,7 +142,7 @@ KvStore::KvStore(std::size_t size, StorageMode mode, ConnectionMode conn_mode)
               createPersistentStorage(size);
             }
 
-          named_mutex mutex(open_or_create, MUTEX_NAME);
+          named_mutex mutex(open_or_create, mutex_name.c_str());
           std::cout << "[KvStore] Recovery successful\n";
           PrintMemoryStats("Recovery");
         }
@@ -145,7 +156,7 @@ void KvStore::createMemoryStorage(std::size_t size)
   // Clean up any existing shared memory segments first
   try
     {
-      managed_shared_memory existing_mem(open_only, "Project");
+      managed_shared_memory existing_mem(open_only, shm_name.c_str());
       auto result = existing_mem.find<MemoryHashMap>("SharedMap");
       if(result.first != nullptr)
         {
@@ -161,13 +172,13 @@ void KvStore::createMemoryStorage(std::size_t size)
     }
 
   // Remove any existing shared memory with the same name
-  shared_memory_object::remove("Project");
+  shared_memory_object::remove(shm_name.c_str());
 
   // Create new shared memory
   try
     {
       memory_storage = std::make_unique<managed_shared_memory>(
-        create_only, "Project", size);
+        create_only, shm_name.c_str(), size);
       std::cout << "[KvStore] Created new shared memory segment: "
                 << (size / (1024 * 1024)) << "MB\n";
 
@@ -188,7 +199,7 @@ void KvStore::createMemoryStorage(std::size_t size)
 
 void KvStore::createPersistentStorage(std::size_t size)
 {
-  bool file_exists = std::filesystem::exists(PERSISTENT_FILE_PATH);
+  bool file_exists = std::filesystem::exists(persistent_file_path);
   std::cout << "[KvStore] Persistent file exists: "
             << (file_exists ? "YES" : "NO") << std::endl;
 
@@ -198,7 +209,7 @@ void KvStore::createPersistentStorage(std::size_t size)
         {
           // Try to open existing file
           file_storage = std::make_unique<managed_mapped_file>(
-            open_only, PERSISTENT_FILE_PATH.c_str());
+            open_only, persistent_file_path.c_str());
 
           // Try to find existing map
           auto result = file_storage->find<MappedHashMap>("SharedMap");
@@ -228,7 +239,7 @@ void KvStore::createPersistentStorage(std::size_t size)
   // Remove existing file if corrupted or doesn't exist
   if(file_exists)
     {
-      std::filesystem::remove(PERSISTENT_FILE_PATH);
+      std::filesystem::remove(persistent_file_path);
       std::cout << "[KvStore] Removed existing corrupted file\n";
     }
 
@@ -236,9 +247,9 @@ void KvStore::createPersistentStorage(std::size_t size)
   try
     {
       file_storage = std::make_unique<managed_mapped_file>(
-        create_only, PERSISTENT_FILE_PATH.c_str(), size);
+        create_only, persistent_file_path.c_str(), size);
       std::cout << "[KvStore] Created new memory-mapped file: "
-                << PERSISTENT_FILE_PATH << "\n";
+                << persistent_file_path << "\n";
 
       // Construct the unordered map in mapped file
       MappedMapAllocator map_allocator(file_storage->get_segment_manager());
@@ -266,7 +277,7 @@ void KvStore::connectToMemoryStorage()
       std::cout
         << "[KvStore] Attempting to connect to existing shared memory...\n";
       memory_storage
-        = std::make_unique<managed_shared_memory>(open_only, "Project");
+        = std::make_unique<managed_shared_memory>(open_only, shm_name.c_str());
 
       auto result = memory_storage->find<MemoryHashMap>("SharedMap");
       if(result.first != nullptr)
@@ -298,13 +309,13 @@ void KvStore::connectToPersistentStorage()
       std::cout << "[KvStore] Attempting to connect to existing persistent "
                    "storage...\n";
 
-      if(!std::filesystem::exists(PERSISTENT_FILE_PATH))
+      if(!std::filesystem::exists(persistent_file_path))
         {
           throw interprocess_exception("Persistent file does not exist");
         }
 
       file_storage = std::make_unique<managed_mapped_file>(
-        open_only, PERSISTENT_FILE_PATH.c_str());
+        open_only, persistent_file_path.c_str());
 
       auto result = file_storage->find<MappedHashMap>("SharedMap");
       if(result.first != nullptr)
@@ -334,7 +345,7 @@ void KvStore::cleanupStorage()
 {
   if(storage_mode == StorageMode::MEMORY)
     {
-      shared_memory_object::remove("Project");
+      shared_memory_object::remove(shm_name.c_str());
 
       // Clean up additional files for memory mode
       try
@@ -374,9 +385,9 @@ void KvStore::cleanupStorage()
     }
   else
     {
-      if(std::filesystem::exists(PERSISTENT_FILE_PATH))
+      if(std::filesystem::exists(persistent_file_path))
         {
-          std::filesystem::remove(PERSISTENT_FILE_PATH);
+          std::filesystem::remove(persistent_file_path);
         }
     }
 }
@@ -400,7 +411,8 @@ MemoryStats KvStore::GetMemoryStats() const
 
   if(storage_mode == StorageMode::MEMORY && memory_storage)
     {
-      stats.total_size = total_memory_size;
+      // Use the actual shared segment size reported by Boost
+      stats.total_size = memory_storage->get_size();
       stats.free_memory = memory_storage->get_free_memory();
       stats.used_memory = stats.total_size - stats.free_memory;
       stats.usage_percent
@@ -408,7 +420,8 @@ MemoryStats KvStore::GetMemoryStats() const
     }
   else if(storage_mode == StorageMode::PERSISTENT && file_storage)
     {
-      stats.total_size = total_memory_size;
+      // For mapped files use the actual mapping size
+      stats.total_size = file_storage->get_size();
       stats.free_memory = file_storage->get_free_memory();
       stats.used_memory = stats.total_size - stats.free_memory;
       stats.usage_percent
@@ -436,7 +449,7 @@ void KvStore::PrintMemoryStats(const std::string &operation) const
             << stats.usage_percent << "%\n";
   if(storage_mode == StorageMode::PERSISTENT)
     {
-      std::cout << "  File path:    " << PERSISTENT_FILE_PATH << "\n";
+      std::cout << "  File path:    " << persistent_file_path << "\n";
     }
   std::cout << "============================================\n";
 }
@@ -478,7 +491,7 @@ void KvStore::Insert(int key, const std::string &value)
           return;
         }
 
-      named_mutex mutex(open_only, MUTEX_NAME);
+      named_mutex mutex(open_only, mutex_name.c_str());
       scoped_lock<named_mutex> lock(mutex);
 
       // Check memory requirements first
@@ -555,7 +568,7 @@ void KvStore::Update(int key, const std::string &new_value)
           return;
         }
 
-      named_mutex mutex(open_only, MUTEX_NAME);
+      named_mutex mutex(open_only, mutex_name.c_str());
       scoped_lock<named_mutex> lock(mutex);
 
       if(storage_mode == StorageMode::MEMORY)
@@ -644,7 +657,7 @@ void KvStore::Delete(int key)
           return;
         }
 
-      named_mutex mutex(open_only, MUTEX_NAME);
+      named_mutex mutex(open_only, mutex_name.c_str());
       scoped_lock<named_mutex> lock(mutex);
 
       std::size_t pre_free_memory = GetFreeMemory();
@@ -712,7 +725,7 @@ std::string KvStore::Find(int key)
           return "Map not found";
         }
 
-      named_mutex mutex(open_only, MUTEX_NAME);
+      named_mutex mutex(open_only, mutex_name.c_str());
       scoped_lock<named_mutex> lock(mutex);
 
       if(storage_mode == StorageMode::MEMORY)
@@ -771,7 +784,7 @@ std::size_t KvStore::GetMapSize() const
           return 0;
         }
 
-      named_mutex mutex(open_only, MUTEX_NAME);
+      named_mutex mutex(open_only, mutex_name.c_str());
       scoped_lock<named_mutex> lock(mutex);
 
       if(storage_mode == StorageMode::MEMORY)
@@ -801,7 +814,7 @@ void KvStore::ListAllKeys() const
           return;
         }
 
-      named_mutex mutex(open_only, MUTEX_NAME);
+      named_mutex mutex(open_only, mutex_name.c_str());
       scoped_lock<named_mutex> lock(mutex);
 
       std::cout << "\n========== ALL KEYS IN STORAGE ==========\n";
@@ -888,7 +901,7 @@ KvStore::~KvStore()
       // Clean up mutex
       try
         {
-          named_mutex::remove(MUTEX_NAME);
+          named_mutex::remove(mutex_name.c_str());
           std::cout << "Mutex cleaned up." << std::endl;
         }
       catch(const std::exception &e)
