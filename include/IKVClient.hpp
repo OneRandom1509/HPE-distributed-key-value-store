@@ -2,6 +2,9 @@
 #define IKVCLIENT_HPP
 
 #include <string>
+#include <vector>
+
+struct MemberRecord;
 
 class IKVClient
 {
@@ -15,6 +18,8 @@ public:
   update(int key, const std::string value, const std::string &server_endpoint)
     = 0;
   virtual void deleteKey(int key, const std::string &server_endpoint) = 0;
+  virtual std::vector<MemberRecord>
+  getMembership(const std::string &server_endpoint) = 0;
 };
 
 #endif // IKVCLIENT_HPP

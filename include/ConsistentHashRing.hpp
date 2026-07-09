@@ -6,17 +6,32 @@
 #include <unordered_map>
 #include <cstdint>
 
+struct KeyRange
+{
+  uint32_t start; // inclusive
+  uint32_t end;   // exclusive; if start >= end the range wraps past UINT32_MAX
+};
+
+struct KeyRangeAssignment
+{
+  KeyRange range;
+  int primary_node_id;
+  int buddy_node_id;
+};
+
 class ConsistentHashRing
 {
 public:
   ConsistentHashRing() = default;
   ConsistentHashRing(const std::unordered_map<int, std::string> &node_endpoints,
-                     int virtual_nodes_per_node = 150);
+                     int virtual_nodes_per_node = 2);
 
   int getPrimaryNode(int key) const;
   int getBuddyNode(int key) const;
+  std::unordered_map<int, std::vector<KeyRange>> getKeyRanges() const;
+  std::vector<KeyRangeAssignment> getKeyRangeAssignments() const;
   void rebuild(const std::unordered_map<int, std::string> &node_endpoints,
-               int virtual_nodes_per_node = 150);
+               int virtual_nodes_per_node = 2);
 
 private:
   struct Token

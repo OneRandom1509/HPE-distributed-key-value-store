@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include "KVStore.hpp"
 #include "IKVClient.hpp"
+#include "GossipMembership.hpp"
 #include <chrono>
 
 namespace tl = thallium;
@@ -16,7 +17,7 @@ private:
   tl::engine myEngine;
   uint16_t provider_id;
   std::string protocol;
-  uint64_t rpc_timeout_ms = 0; // 0 means no timeout (blocking)
+  uint64_t rpc_timeout_ms = 0;
 
 public:
   KVClient(const std::string &protocol, uint16_t provider_id,
@@ -27,6 +28,8 @@ public:
   void update(int key, const std::string value,
               const std::string &server_endpoint) override;
   void deleteKey(int key, const std::string &server_endpoint) override;
+  std::vector<MemberRecord>
+  getMembership(const std::string &server_endpoint) override;
 };
 
 #endif // KVCLIENT_HPP

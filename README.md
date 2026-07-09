@@ -29,11 +29,10 @@ Ensure the following dependencies are installed:
 - Spack (for managing HPC dependencies)
 - Spack libraries:
   - mochi-margo
-  - argobots
-  - mercury
   - mochi-thallium
   - nlohmann-json
   - boost
+  - spdlog
 
 ## Install Dependencies with Spack
 
@@ -50,12 +49,11 @@ export PATH=$PATH:$(pwd)/spack/bin
 ### Install required libraries
 ```bash
 git clone https://github.com/mochi-hpc/mochi-spack-packages.git
-spack repo add mochi-spack-packages
+cd mochi-spack-packages/spack_repo
+spack repo add mochi
 
-spack install margo
-spack install argobots
-spack install mercury
-spack install thallium
+spack install mochi-margo
+spack install mochi-thallium
 spack install nlohmann-json
 spack install boost
 spack install spdlog
@@ -93,3 +91,28 @@ To stop the server, just do `CTRL+C`.
 make client
 ```
 To stop the client, just type `exit` or do `CTRL+C`.
+
+## Configuration
+
+The server and client read `config/config.json` (JSON format). Below are the available fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `provider_id` | int | RPC provider ID (default: `1`) |
+| `protocol` | string | OFI protocol (e.g. `ofi+tcp`) |
+| `count_of_node` | int | Total number of nodes in the cluster |
+| `ip_addresses` | object | Node ID to `ip:port` mapping |
+| `size` | int | Shared memory size in MB |
+| `local_ip` | string | Override for this node's `ip:port` (empty string to auto-detect) |
+| `gossip` | object (optional) | Gossip protocol settings (see below) |
+
+### Gossip sub-fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `interval_ms` | int | `1000` | Gossip interval in ms |
+| `suspect_threshold_ms` | int | `3000` | Time before marking a node as suspect |
+| `dead_threshold_ms` | int | `10000` | Time before marking a node as dead |
+| `seed_nodes` | string[] | `[]` | Initial gossip seed endpoints (`protocol://ip:port`)
+
+An example configuration file: [sample_config.json](https://github.com/OneRandom1509/hpe-distributed-key-value-store/blob/feat/gossip-membership/config/sample_config.json)

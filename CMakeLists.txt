@@ -37,6 +37,9 @@ add_executable(kvm_server
     src/Timer.cpp
     src/main_server.cpp
     src/MurmurHash3.cpp
+    src/GossipMembership.cpp
+    src/ConsistentHashRing.cpp
+    src/config.cpp
 )
 
 target_include_directories(kvm_server
@@ -51,6 +54,8 @@ target_link_libraries(kvm_server
         PkgConfig::MERCURY
         thallium
         Boost::boost
+        nlohmann_json::nlohmann_json
+        spdlog::spdlog
 )
 
 # ------------------------------------------------

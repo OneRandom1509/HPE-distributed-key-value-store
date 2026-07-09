@@ -1,6 +1,7 @@
 #include "KVClient.hpp"
 #include "Timer.hpp"
 #include <thallium/serialization/stl/string.hpp>
+#include <thallium/serialization/stl/vector.hpp>
 #include <chrono>
 
 KVClient::KVClient(const std::string &protocol, uint16_t provider_id,
@@ -141,5 +142,36 @@ void KVClient::deleteKey(int key, const std::string &server_endpoint)
   catch(const std::exception &e)
     {
       std::cerr << "Delete operation failed: " << e.what() << std::endl;
+    }
+}
+
+std::vector<MemberRecord>
+KVClient::getMembership(const std::string &server_endpoint)
+{
+  try
+    {
+      tl::remote_procedure remote_get_membership
+        = myEngine.define("get_membership");
+      std::string full_ep = protocol + "://" + server_endpoint;
+      tl::endpoint server_ep = myEngine.lookup(full_ep);
+      tl::provider_handle ph(server_ep, provider_id);
+      std::vector<MemberRecord> result;
+      if(rpc_timeout_ms > 0)
+        {
+          auto req = remote_get_membership.on(ph).timed_async(
+            std::chrono::milliseconds(rpc_timeout_ms));
+          result = req.wait().as<std::vector<MemberRecord>>();
+        }
+      else
+        {
+          result
+            = remote_get_membership.on(ph)().as<std::vector<MemberRecord>>();
+        }
+      return result;
+    }
+  catch(const std::exception &e)
+    {
+      std::cerr << "getMembership failed: " << e.what() << std::endl;
+      return {};
     }
 }

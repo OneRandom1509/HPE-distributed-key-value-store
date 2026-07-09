@@ -8,5 +8,14 @@
     "2": "192.168.1.48:5002"
   },
   "size": 1,
-  "local_ip": ""
- }
+  "local_ip": "",
+  "gossip": {
+    "interval_ms": 1000,
+    "suspect_threshold_ms": 3000,
+    "dead_threshold_ms": 10000,
+    "seed_nodes": [
+      "ofi+tcp://192.168.1.48:5000",
+      "ofi+tcp://192.168.1.48:5001"
+    ]
+  }
+}

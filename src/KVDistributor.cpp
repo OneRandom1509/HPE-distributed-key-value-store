@@ -1,4 +1,5 @@
 #include "KVDistributor.hpp"
+#include "GossipMembership.hpp"
 #include "MurmurHash3.hpp"
 #include <spdlog/spdlog.h>
 #include <iostream>
@@ -88,18 +89,80 @@ int KVDistributor::getLocalNodeId()
   return -1;
 }
 
-void KVDistributor::rebuildRing() { hash_ring.rebuild(node_to_ip); }
+void KVDistributor::rebuildRing()
+{
+  std::lock_guard<std::mutex> lock(ring_mutex_);
+  hash_ring.rebuild(node_to_ip);
+}
 
 void KVDistributor::rebuildRing(
   const std::unordered_map<int, std::string> &node_endpoints,
   int virtual_nodes_per_node)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   node_to_ip = node_endpoints;
   count_of_node = static_cast<int>(node_to_ip.size());
   hash_ring.rebuild(node_to_ip, virtual_nodes_per_node);
 }
 
-int KVDistributor::getNodeCount() { return count_of_node; }
+int KVDistributor::getNodeCount()
+{
+  std::lock_guard<std::mutex> lock(ring_mutex_);
+  return count_of_node;
+}
+
+std::string KVDistributor::getFirstEndpoint() const
+{
+  std::lock_guard<std::mutex> lock(ring_mutex_);
+  if(node_to_ip.empty())
+    return {};
+  return node_to_ip.begin()->second;
+}
+
+std::vector<std::string> KVDistributor::getAllEndpoints() const
+{
+  std::lock_guard<std::mutex> lock(ring_mutex_);
+  std::vector<std::string> endpoints;
+  endpoints.reserve(node_to_ip.size());
+  for(const auto &[_, ep] : node_to_ip)
+    endpoints.push_back(ep);
+  return endpoints;
+}
+
+bool KVDistributor::fetchMembershipFromServer(
+  const std::string &server_endpoint)
+{
+  try
+    {
+      auto members = kv_client->getMembership(server_endpoint);
+      std::unordered_map<int, std::string> live;
+      for(const auto &m : members)
+        {
+          if(m.status != NodeStatus::ALIVE)
+            continue;
+          std::string ep = m.endpoint;
+          auto pos = ep.find("://");
+          if(pos != std::string::npos)
+            ep = ep.substr(pos + 3);
+          live[m.node_id] = ep;
+        }
+      if(live.empty())
+        return false;
+      std::lock_guard<std::mutex> lock(ring_mutex_);
+      if(live == node_to_ip)
+        return true;
+      node_to_ip = live;
+      count_of_node = static_cast<int>(node_to_ip.size());
+      hash_ring.rebuild(node_to_ip);
+      return true;
+    }
+  catch(const std::exception &e)
+    {
+      std::cerr << "fetchMembershipFromServer failed: " << e.what()
+                << std::endl;
+      return false;
+    }
+}
 
 bool KVDistributor::readFromNode(int node_id, int key, std::string &value)
 {
@@ -108,8 +171,8 @@ bool KVDistributor::readFromNode(int node_id, int key, std::string &value)
 
   const uint32_t hash = keyHash(key);
   spdlog::debug(
-    "KVDistributor read key={} hash={} node={} endpoint={} local={}", key,
-    hash, node_id, getNodeToIP(node_id), isLocalNode(node_id));
+    "KVDistributor read hash=0x{:08X} node={} endpoint={} local={}", hash,
+    node_id, getNodeToIP(node_id), isLocalNode(node_id));
 
   if(isLocalNode(node_id))
     {
@@ -139,8 +202,8 @@ void KVDistributor::writeToNode(int node_id, int key, const std::string &value,
 
   const uint32_t hash = keyHash(key);
   const char *op_name = (op == RemoteOp::INSERT) ? "insert" : "update";
-  spdlog::debug("KVDistributor {} key={} hash={} node={} endpoint={} local={}",
-                op_name, key, hash, node_id, getNodeToIP(node_id),
+  spdlog::debug("KVDistributor {} hash=0x{:08X} node={} endpoint={} local={}",
+                op_name, hash, node_id, getNodeToIP(node_id),
                 isLocalNode(node_id));
 
   if(isLocalNode(node_id))
@@ -185,8 +248,8 @@ void KVDistributor::deleteOnNode(int node_id, int key)
 
   const uint32_t hash = keyHash(key);
   spdlog::debug(
-    "KVDistributor delete key={} hash={} node={} endpoint={} local={}", key,
-    hash, node_id, getNodeToIP(node_id), isLocalNode(node_id));
+    "KVDistributor delete hash=0x{:08X} node={} endpoint={} local={}", hash,
+    node_id, getNodeToIP(node_id), isLocalNode(node_id));
 
   if(isLocalNode(node_id))
     {
@@ -215,14 +278,15 @@ void KVDistributor::deleteOnNode(int node_id, int key)
 
 std::string KVDistributor::get(int key)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   std::string value;
 
   int primary_node_id = hash_ring.getPrimaryNode(key);
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
 
-  spdlog::debug("KVDistributor get key={} hash={} primary={} buddy={}", key,
-                hash, primary_node_id, buddy_node_id);
+  spdlog::debug("KVDistributor get hash=0x{:08X} primary={} buddy={}", hash,
+                primary_node_id, buddy_node_id);
 
   if(readFromNode(primary_node_id, key, value))
     {
@@ -232,6 +296,9 @@ std::string KVDistributor::get(int key)
   if(buddy_node_id != primary_node_id
      && readFromNode(buddy_node_id, key, value))
     {
+      spdlog::info("Lazy migrating key hash=0x{:08X} from node {} to node {}",
+                   hash, buddy_node_id, primary_node_id);
+      writeToNode(primary_node_id, key, value, RemoteOp::INSERT);
       return value;
     }
 
@@ -240,12 +307,13 @@ std::string KVDistributor::get(int key)
 
 void KVDistributor::insert(int key, const std::string &value)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   int primary_node_id = hash_ring.getPrimaryNode(key);
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
 
-  spdlog::debug("KVDistributor insert key={} hash={} primary={} buddy={}", key,
-                hash, primary_node_id, buddy_node_id);
+  spdlog::debug("KVDistributor insert hash=0x{:08X} primary={} buddy={}", hash,
+                primary_node_id, buddy_node_id);
 
   writeToNode(primary_node_id, key, value, RemoteOp::INSERT);
   if(buddy_node_id != primary_node_id)
@@ -254,12 +322,13 @@ void KVDistributor::insert(int key, const std::string &value)
 
 void KVDistributor::update(int key, const std::string &value)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   int primary_node_id = hash_ring.getPrimaryNode(key);
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
 
-  spdlog::debug("KVDistributor update key={} hash={} primary={} buddy={}", key,
-                hash, primary_node_id, buddy_node_id);
+  spdlog::debug("KVDistributor update hash=0x{:08X} primary={} buddy={}", hash,
+                primary_node_id, buddy_node_id);
 
   writeToNode(primary_node_id, key, value, RemoteOp::UPDATE);
   if(buddy_node_id != primary_node_id)
@@ -268,12 +337,13 @@ void KVDistributor::update(int key, const std::string &value)
 
 void KVDistributor::deleteKey(int key)
 {
+  std::lock_guard<std::mutex> lock(ring_mutex_);
   int primary_node_id = hash_ring.getPrimaryNode(key);
   int buddy_node_id = hash_ring.getBuddyNode(key);
   const uint32_t hash = keyHash(key);
 
-  spdlog::debug("KVDistributor delete key={} hash={} primary={} buddy={}", key,
-                hash, primary_node_id, buddy_node_id);
+  spdlog::debug("KVDistributor delete hash=0x{:08X} primary={} buddy={}", hash,
+                primary_node_id, buddy_node_id);
 
   deleteOnNode(primary_node_id, key);
   if(buddy_node_id != primary_node_id)
