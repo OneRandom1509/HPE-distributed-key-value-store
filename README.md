@@ -116,3 +116,17 @@ The server and client read `config/config.json` (JSON format). Below are the ava
 | `seed_nodes` | string[] | `[]` | Initial gossip seed endpoints (`protocol://ip:port`)
 
 An example configuration file: [sample_config.json](https://github.com/OneRandom1509/hpe-distributed-key-value-store/blob/feat/gossip-membership/config/sample_config.json)
+
+## Benchmark Results
+
+Benchmarks conducted on a **4-node KV server cluster** with **10,000 operations** in **MEMORY storage mode**.
+
+| Metric | Sequential | Random |
+|---|---|---|
+| Total Insertion Time | 2630 ms | 3492 ms |
+| Avg Insertion Time | 0.2630 ms | 0.3492 ms |
+| Total Fetch Time | 2133 ms | 1937 ms |
+| Avg Fetch Time | 0.2128 ms | 0.1932 ms |
+| Min Fetch Time | 0.0240 ms | 0.0250 ms |
+| Max Fetch Time | 329.1320 ms | 95.8230 ms |
+| Successful Fetches | 10,000/10,000 | 10,000/10,000 |
